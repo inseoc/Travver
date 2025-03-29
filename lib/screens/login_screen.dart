@@ -3,7 +3,6 @@ import 'package:travver/constants/app_colors.dart';
 import 'package:travver/constants/app_assets.dart';
 import 'package:travver/screens/onboarding_screen.dart';
 import 'package:travver/screens/home_screen.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -27,32 +26,47 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _login() {
-    if (_formKey.currentState!.validate()) {
-      // 로그인 처리 후 홈 화면으로 직접 이동
+    if (_formKey.currentState?.validate() ?? false) {
+      // 로그인 처리 로직 (API 호출 등)
+      
+      // 로그인 성공 시 홈 화면으로 이동 (애니메이션 적용)
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => const HomeScreen()),
+        PageRouteBuilder(
+          pageBuilder: (context, animation, secondaryAnimation) => const HomeScreen(),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(opacity: animation, child: child);
+          },
+          transitionDuration: const Duration(milliseconds: 500),
+        ),
       );
     }
   }
 
   void _navigateToOnboarding() {
-    // 온보딩 화면으로 이동
     Navigator.of(context).push(
       MaterialPageRoute(builder: (context) => const OnboardingScreen()),
     );
   }
+  
+  // 소셜 로그인 함수 (예시)
+  void _loginWithGoogle() { /* Google 로그인 로직 */ }
+  void _loginWithApple() { /* Apple 로그인 로직 */ }
+  void _loginWithKakao() { /* Kakao 로그인 로직 */ }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final textTheme = theme.textTheme;
+    final colorScheme = theme.colorScheme;
+
     return Scaffold(
-      backgroundColor: Colors.white,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 24.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: 60),
+              const SizedBox(height: 40),
               
               // 로고 및 앱 이름
               Center(
@@ -61,23 +75,19 @@ class _LoginScreenState extends State<LoginScreen> {
                     // 로고
                     Image.asset(
                       AppAssets.logoPath,
-                      width: 120,
-                      height: 120,
-                      // 이미지가 없는 경우 대체 위젯
+                      width: 100,
                       errorBuilder: (context, error, stackTrace) {
                         return Container(
-                          width: 120,
-                          height: 120,
+                          width: 100,
+                          height: 100,
                           decoration: BoxDecoration(
-                            color: AppColors.primary.withOpacity(0.1),
+                            color: colorScheme.primary.withOpacity(0.1),
                             shape: BoxShape.circle,
                           ),
-                          child: const Center(
-                            child: Icon(
-                              Icons.shopping_bag_outlined, 
-                              size: 60,
-                              color: AppColors.primary,
-                            ),
+                          child: Icon(
+                            Icons.travel_explore,
+                            size: 50,
+                            color: colorScheme.primary,
                           ),
                         );
                       },
@@ -88,10 +98,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     // 앱 이름
                     Text(
                       'Travver',
-                      style: GoogleFonts.notoSansKr(
-                        fontSize: 32,
+                      style: textTheme.displayMedium?.copyWith(
+                        color: colorScheme.primary,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.primary,
                       ),
                     ),
                     
@@ -99,9 +108,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     
                     // 태그라인
                     Text(
-                      '오사카 여행의 모든 것',
-                      style: GoogleFonts.notoSansKr(
-                        fontSize: 16,
+                      '오사카 여행의 모든 것, 트래버와 함께',
+                      style: textTheme.bodyMedium?.copyWith(
                         color: AppColors.textGray,
                       ),
                     ),
@@ -109,7 +117,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
               
-              const SizedBox(height: 50),
+              const SizedBox(height: 40),
               
               // 로그인 폼
               Form(
@@ -117,57 +125,39 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // 이메일 필드
-                    Text(
-                      '이메일',
-                      style: GoogleFonts.notoSansKr(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: AppColors.textDark,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
                     TextFormField(
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
-                      decoration: const InputDecoration(
-                        hintText: '이메일 주소를 입력하세요',
-                        prefixIcon: Icon(Icons.email_outlined),
+                      decoration: InputDecoration(
+                        hintText: '이메일 주소',
+                        prefixIcon: Icon(Icons.email_outlined, color: AppColors.textGray),
                       ),
+                      style: textTheme.bodyMedium,
                       validator: (value) {
                         if (value == null || value.isEmpty) {
-                          return '이메일을 입력해주세요';
+                          return '이메일을 입력해주세요.';
                         }
                         if (!value.contains('@') || !value.contains('.')) {
-                          return '올바른 이메일 형식이 아닙니다';
+                          return '올바른 이메일 형식이 아닙니다.';
                         }
                         return null;
                       },
                     ),
                     
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 16),
                     
-                    // 비밀번호 필드
-                    Text(
-                      '비밀번호',
-                      style: GoogleFonts.notoSansKr(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: AppColors.textDark,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
                     TextFormField(
                       controller: _passwordController,
                       obscureText: !_isPasswordVisible,
                       decoration: InputDecoration(
-                        hintText: '비밀번호를 입력하세요',
-                        prefixIcon: const Icon(Icons.lock_outline),
+                        hintText: '비밀번호',
+                        prefixIcon: Icon(Icons.lock_outline, color: AppColors.textGray),
                         suffixIcon: IconButton(
                           icon: Icon(
                             _isPasswordVisible 
                               ? Icons.visibility_outlined 
                               : Icons.visibility_off_outlined,
+                            color: AppColors.textGray,
                           ),
                           onPressed: () {
                             setState(() {
@@ -176,12 +166,13 @@ class _LoginScreenState extends State<LoginScreen> {
                           },
                         ),
                       ),
+                      style: textTheme.bodyMedium,
                       validator: (value) {
                         if (value == null || value.isEmpty) {
-                          return '비밀번호를 입력해주세요';
+                          return '비밀번호를 입력해주세요.';
                         }
                         if (value.length < 6) {
-                          return '비밀번호는 6자 이상이어야 합니다';
+                          return '비밀번호는 6자 이상이어야 합니다.';
                         }
                         return null;
                       },
@@ -206,15 +197,22 @@ class _LoginScreenState extends State<LoginScreen> {
                                     _rememberMe = value ?? false;
                                   });
                                 },
-                                activeColor: AppColors.primary,
+                                activeColor: colorScheme.primary,
+                                checkColor: colorScheme.onPrimary,
+                                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                visualDensity: VisualDensity.compact,
                               ),
                             ),
                             const SizedBox(width: 8),
-                            Text(
-                              '로그인 유지하기',
-                              style: GoogleFonts.notoSansKr(
-                                fontSize: 14,
-                                color: AppColors.textGray,
+                            GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  _rememberMe = !_rememberMe;
+                                });
+                              },
+                              child: Text(
+                                '로그인 상태 유지',
+                                style: textTheme.bodySmall?.copyWith(color: AppColors.textGray),
                               ),
                             ),
                           ],
@@ -223,154 +221,112 @@ class _LoginScreenState extends State<LoginScreen> {
                         // 비밀번호 찾기
                         TextButton(
                           onPressed: () {
-                            // 비밀번호 찾기 화면으로 이동 (미구현)
+                            // TODO: 비밀번호 찾기 화면 로직 구현
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('비밀번호 찾기 기능은 준비중입니다.')),
+                            );
                           },
                           child: Text(
-                            '비밀번호 찾기',
-                            style: GoogleFonts.notoSansKr(
-                              fontSize: 14,
-                              color: AppColors.primary,
-                            ),
+                            '비밀번호를 잊으셨나요?',
+                            style: textTheme.bodySmall?.copyWith(color: colorScheme.primary),
                           ),
                         ),
                       ],
                     ),
                     
-                    const SizedBox(height: 40),
+                    const SizedBox(height: 32),
                     
                     // 로그인 버튼
                     ElevatedButton(
                       onPressed: _login,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(28),
-                        ),
-                      ),
-                      child: Text(
-                        '로그인',
-                        style: GoogleFonts.notoSansKr(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                      child: const Text('로그인'),
                     ),
                     
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 24),
                     
-                    // 소셜 로그인 안내
-                    Center(
-                      child: Text(
-                        '또는 소셜 계정으로 로그인',
-                        style: GoogleFonts.notoSansKr(
-                          fontSize: 14,
-                          color: AppColors.textGray,
-                        ),
-                      ),
-                    ),
-                    
-                    const SizedBox(height: 20),
-                    
-                    // 소셜 로그인 버튼들
+                    // 소셜 로그인 구분선
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        // 카카오 로그인
-                        _buildSocialLoginButton(
-                          icon: Icons.chat_bubble,
-                          color: const Color(0xFFFEE500),
-                          onPressed: () {},
+                        const Expanded(child: Divider(height: 1, thickness: 0.5)),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                          child: Text(
+                            'SNS 계정으로 로그인',
+                            style: textTheme.bodySmall?.copyWith(color: AppColors.textGray),
+                          ),
                         ),
-                        
-                        const SizedBox(width: 24),
-                        
-                        // 네이버 로그인
-                        _buildSocialLoginButton(
-                          icon: Icons.tag,
-                          color: const Color(0xFF03C75A),
-                          onPressed: () {},
-                        ),
-                        
-                        const SizedBox(width: 24),
-                        
-                        // 구글 로그인
-                        _buildSocialLoginButton(
-                          icon: Icons.g_mobiledata,
-                          color: const Color(0xFF4285F4),
-                          onPressed: () {},
-                        ),
+                        const Expanded(child: Divider(height: 1, thickness: 0.5)),
                       ],
                     ),
                     
+                    const SizedBox(height: 24),
+                    
+                    // 소셜 로그인 버튼 영역 (임시 주석 처리 - AppAssets 정의 필요)
+                    /*
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        _buildSocialLoginButton(AppAssets.googleLogoPath, _loginWithGoogle),
+                        const SizedBox(width: 20),
+                        _buildSocialLoginButton(AppAssets.appleLogoPath, _loginWithApple),
+                        const SizedBox(width: 20),
+                        _buildSocialLoginButton(AppAssets.kakaoLogoPath, _loginWithKakao),
+                      ],
+                    ),
+                    */
+                    
                     const SizedBox(height: 40),
                     
-                    // 회원가입 안내 및 버튼
-                    Center(
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            '계정이 없으신가요?',
-                            style: GoogleFonts.notoSansKr(
-                              fontSize: 14,
-                              color: AppColors.textGray,
+                    // 회원가입 안내
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          '아직 계정이 없으신가요? ',
+                          style: textTheme.bodyMedium?.copyWith(color: AppColors.textGray),
+                        ),
+                        TextButton(
+                          onPressed: _navigateToOnboarding,
+                          style: TextButton.styleFrom(
+                            padding: EdgeInsets.zero,
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          child: Text(
+                            '회원가입',
+                            style: textTheme.bodyMedium?.copyWith(
+                              color: colorScheme.primary,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
-                          TextButton(
-                            onPressed: _navigateToOnboarding,
-                            child: Text(
-                              '회원가입',
-                              style: GoogleFonts.notoSansKr(
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.primary,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
+                    const SizedBox(height: 40),
                   ],
                 ),
               ),
-              
-              const SizedBox(height: 30),
             ],
           ),
         ),
       ),
     );
   }
-  
-  Widget _buildSocialLoginButton({
-    required IconData icon,
-    required Color color,
-    required VoidCallback onPressed,
-  }) {
-    return Material(
-      elevation: 0,
-      shape: const CircleBorder(),
-      clipBehavior: Clip.hardEdge,
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onPressed,
-        child: Ink(
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: color.withOpacity(0.1),
-          ),
-          child: Container(
-            width: 48,
-            height: 48,
-            alignment: Alignment.center,
-            child: Icon(
-              icon,
-              size: 28,
-              color: color,
-            ),
-          ),
+
+  Widget _buildSocialLoginButton(String assetPath, VoidCallback onPressed) {
+    return InkWell(
+      onTap: onPressed,
+      borderRadius: BorderRadius.circular(24),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(color: AppColors.textLightGray, width: 0.5),
+        ),
+        child: Image.asset(
+          assetPath,
+          height: 24,
+          width: 24,
         ),
       ),
     );

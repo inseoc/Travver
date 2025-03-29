@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:travver/constants/app_colors.dart';
+// import 'package:google_fonts/google_fonts.dart'; // 테마 사용으로 불필요
+import 'package:travver/constants/app_colors.dart'; // 부분적으로 필요할 수 있음
 import 'package:travver/constants/app_assets.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -12,192 +12,65 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
+  final String _userName = "Travver"; // 예시 사용자 이름 (실제로는 인증 상태에서 가져와야 함)
+
+  // 각 탭에 해당하는 화면 위젯 리스트 (실제 구현 필요)
+  final List<Widget> _screens = [
+    const _HomeTabContent(), // 홈 탭 컨텐츠 위젯
+    const Center(child: Text('여행 계획 Screen')), // 여행 계획 탭
+    const Center(child: Text('예산 관리 Screen')), // 예산 관리 탭
+    const Center(child: Text('내 정보 Screen')), // 내 정보 탭
+  ];
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Scaffold(
-      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 1,
-        title: Text(
-          'Travver',
-          style: GoogleFonts.notoSansKr(
-            fontSize: 18,
-            fontWeight: FontWeight.w500,
-            color: AppColors.primary,
-          ),
-        ),
-        centerTitle: true,
+        // 테마의 appBarTheme이 적용됨 (backgroundColor, elevation, foregroundColor 등)
+        leadingWidth: 80, // 로고/앱이름 공간 확보
         leading: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Image.asset(
-            AppAssets.logoPath,
-            width: 24,
-            height: 24,
-            errorBuilder: (context, error, stackTrace) {
-              return const Icon(
-                Icons.shopping_bag_outlined,
-                color: AppColors.primary,
-                size: 24,
-              );
-            },
+          padding: const EdgeInsets.only(left: 16.0),
+          child: Row(
+            children: [
+              Image.asset(
+                AppAssets.logoPath,
+                height: 24, // 로고 높이 조정
+                errorBuilder: (context, error, stackTrace) {
+                  return Icon(Icons.travel_explore, color: colorScheme.primary, size: 24);
+                },
+              ),
+              // const SizedBox(width: 8), // 로고만 표시할 경우 주석 처리
+              // Text('Travver', style: theme.textTheme.titleMedium?.copyWith(color: colorScheme.primary)),
+            ],
           ),
         ),
         actions: [
-          Container(
-            margin: const EdgeInsets.only(right: 16),
-            width: 32,
-            height: 32,
-            decoration: const BoxDecoration(
-              shape: BoxShape.circle,
-              color: AppColors.primary,
-            ),
-            child: const Icon(
-              Icons.person,
-              color: Colors.white,
-              size: 20,
+          Padding(
+            padding: const EdgeInsets.only(right: 16.0),
+            child: InkWell(
+              onTap: () {
+                // 프로필 화면으로 이동
+                setState(() { _currentIndex = 3; }); // 예시: 내 정보 탭으로 이동
+              },
+              borderRadius: BorderRadius.circular(18),
+              child: CircleAvatar(
+                radius: 18,
+                backgroundColor: colorScheme.surfaceVariant, // 테마 색상 활용
+                child: Text(
+                  _userName.isNotEmpty ? _userName[0].toUpperCase() : 'U',
+                  style: theme.textTheme.labelLarge?.copyWith(color: colorScheme.onSurfaceVariant),
+                ),
+              ),
             ),
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // 사용자 인사말 섹션
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: AppColors.background,
-                image: DecorationImage(
-                  image: const AssetImage('assets/images/splash_background.png'),
-                  fit: BoxFit.cover,
-                  opacity: 0.1,
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '안녕하세요, 홍길동님',
-                    style: GoogleFonts.notoSansKr(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textDark,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '오사카 여행을 함께 계획해볼까요?',
-                    style: GoogleFonts.notoSansKr(
-                      fontSize: 16,
-                      color: const Color(0xFF4B5563),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            // 예산 관리 카드
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: _buildFeatureCard(
-                title: '예산 관리 어드바이저',
-                description: '효율적인 여행 예산 관리를 도와드립니다',
-                color: AppColors.secondary,
-                icon: Icons.account_balance_wallet_outlined,
-                buttonText: '예산 설정하기',
-                onTap: () {
-                  // 예산 관리 화면으로 이동
-                },
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            // 여행 계획 카드
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: _buildFeatureCard(
-                title: '여행 계획 세우기',
-                description: '오사카 여행 일정을 효율적으로 계획하세요',
-                color: AppColors.primary,
-                icon: Icons.map_outlined,
-                buttonText: '계획하기',
-                onTap: () {
-                  // 여행 계획 화면으로 이동
-                },
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // 추가 컨텐츠 - 오사카 추천 명소
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '오사카 추천 명소',
-                    style: GoogleFonts.notoSansKr(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textDark,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    height: 180,
-                    child: ListView(
-                      scrollDirection: Axis.horizontal,
-                      children: [
-                        _buildPlaceCard('오사카성', '일본 역사의 상징적인 성곽'),
-                        _buildPlaceCard('도톤보리', '오사카의 활기찬 먹거리 거리'),
-                        _buildPlaceCard('유니버설 스튜디오', '온 가족이 즐기는 테마파크'),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // 오사카 랜드마크 이미지
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '오사카 랜드마크',
-                    style: GoogleFonts.notoSansKr(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textDark,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Image.asset(
-                      AppAssets.landmarkSilhouettePath,
-                      height: 120,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 24),
-          ],
-        ),
+      body: IndexedStack( // 탭 간 상태 유지를 위해 IndexedStack 사용
+        index: _currentIndex,
+        children: _screens,
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
@@ -207,13 +80,15 @@ class _HomeScreenState extends State<HomeScreen> {
           });
         },
         type: BottomNavigationBarType.fixed,
-        backgroundColor: Colors.white,
-        selectedItemColor: AppColors.primary,
-        unselectedItemColor: const Color(0xFF9CA3AF),
+        // backgroundColor: theme.colorScheme.surface, // Material 3에서는 기본값 사용
+        selectedItemColor: colorScheme.primary,
+        unselectedItemColor: AppColors.textGray,
+        selectedLabelStyle: theme.textTheme.labelSmall?.copyWith(fontWeight: FontWeight.bold), // 선택된 라벨 스타일
+        unselectedLabelStyle: theme.textTheme.labelSmall, // 선택되지 않은 라벨 스타일
         items: const [
           BottomNavigationBarItem(
-            icon: Icon(Icons.home_outlined),
-            activeIcon: Icon(Icons.home),
+            icon: Icon(Icons.explore_outlined),
+            activeIcon: Icon(Icons.explore),
             label: '홈',
           ),
           BottomNavigationBarItem(
@@ -235,181 +110,302 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
+}
 
+// --- 홈 탭 컨텐츠 위젯 ---
+class _HomeTabContent extends StatelessWidget {
+  const _HomeTabContent({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final textTheme = theme.textTheme;
+    const String userName = "Travver"; // 예시 사용자 이름
+
+    return ListView( // SingleChildScrollView 대신 ListView 사용 (더 많은 컨텐츠에 적합)
+      padding: const EdgeInsets.only(bottom: 40), // 하단 여백
+      children: [
+        // --- 사용자 인사말 섹션 ---
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '안녕하세요, $userName님 👋',
+                style: textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '오늘 오사카 여행을 위한 영감을 받아보세요!',
+                style: textTheme.bodyLarge?.copyWith(color: AppColors.textGray),
+              ),
+            ],
+          ),
+        ),
+
+        // --- 핵심 기능 카드 ---
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Column(
+            children: [
+              _buildFeatureCard(
+                context: context,
+                title: 'AI 여행 컨설턴트',
+                description: 'AI와 대화하며 나만의 오사카 루트 완성!',
+                backgroundColor: theme.colorScheme.primaryContainer,
+                icon: Icons.assistant_outlined,
+                buttonText: '대화 시작하기',
+                onTap: () { /* AI 컨설턴트 화면 이동 */ },
+              ),
+              const SizedBox(height: 16),
+              _buildFeatureCard(
+                context: context,
+                title: '스마트 예산 플래너',
+                description: '여행 경비, 쉽고 똑똑하게 관리해요.',
+                backgroundColor: theme.colorScheme.secondaryContainer,
+                icon: Icons.savings_outlined,
+                buttonText: '예산 관리 시작',
+                onTap: () { /* 예산 관리 화면 이동 */ },
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 32),
+
+        // --- 오사카 추천 명소 섹션 (임시 주석 처리 - AppAssets 정의 필요) ---
+        /*
+        _buildSectionTitle(context, '놓치면 후회할 오사카 명소 ✨'),
+        SizedBox(
+          height: 230, // 카드 높이 조정
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.only(left: 16, right: 8), // 패딩 조정 (오른쪽 카드 마진 고려)
+            itemCount: 5, // 예시 아이템 개수
+            itemBuilder: (context, index) {
+              // 예시 데이터 (실제로는 모델에서 가져와야 함)
+              final places = [
+                const _PlaceCardData(title: '오사카 성', description: '도시의 상징, 역사 속으로', imagePath: AppAssets.dummyPlace1),
+                const _PlaceCardData(title: '도톤보리', description: '활기찬 네온사인과 먹거리', imagePath: AppAssets.dummyPlace2),
+                const _PlaceCardData(title: '유니버설 스튜디오', description: '짜릿한 어트랙션!', imagePath: AppAssets.dummyPlace3),
+                const _PlaceCardData(title: '신세카이 & 츠텐카쿠', description: '레트로 감성 탐방', imagePath: AppAssets.dummyPlace4),
+                const _PlaceCardData(title: '우메다 공중정원', description: '환상적인 야경 스팟', imagePath: AppAssets.dummyPlace5),
+              ];
+              return _PlaceCard(data: places[index]);
+            },
+          ),
+        ),
+        */
+
+        const SizedBox(height: 32),
+
+        // --- 추천 여행 테마 섹션 ---
+        _buildSectionTitle(context, '이런 테마 여행은 어때요?'),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Column(
+            children: [
+              _buildThemeTile(context, '🍜 식도락 미식 투어', Icons.ramen_dining_outlined, Colors.orange.shade100),
+              _buildThemeTile(context, '🛍️ 쇼핑 성지 완전 정복', Icons.shopping_bag_outlined, Colors.blue.shade100),
+              _buildThemeTile(context, '🏯 역사 & 문화 탐방', Icons.museum_outlined, Colors.green.shade100),
+              _buildThemeTile(context, '🌃 로맨틱 야경 데이트', Icons.nightlife, Colors.purple.shade100),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // --- Helper Methods for _HomeTabContent --- 
+
+  // 섹션 제목
+  Widget _buildSectionTitle(BuildContext context, String title) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 24, right: 24, bottom: 16, top: 8),
+      child: Text(
+        title,
+        style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+      ),
+    );
+  }
+
+  // 핵심 기능 카드
   Widget _buildFeatureCard({
+    required BuildContext context,
     required String title,
     required String description,
-    required Color color,
+    required Color backgroundColor,
     required IconData icon,
     required String buttonText,
     required VoidCallback onTap,
   }) {
-    return Container(
-      height: 120,
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(16),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(16),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Row(
-              children: [
-                // 아이콘
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    icon,
-                    color: Colors.white,
-                    size: 28,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                // 텍스트
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        title,
-                        style: GoogleFonts.notoSansKr(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
+    final theme = Theme.of(context);
+    final textTheme = theme.textTheme;
+    final colorScheme = theme.colorScheme;
+
+    // 배경색에 따른 onColor 계산 (밝기 기준)
+    final Brightness brightness = ThemeData.estimateBrightnessForColor(backgroundColor);
+    final Color onColor = brightness == Brightness.dark ? Colors.white : Colors.black;
+    final Color onColorMuted = onColor.withOpacity(0.7);
+    final Color buttonTextColor = brightness == Brightness.dark ? colorScheme.primary : colorScheme.onPrimary;
+    final Color buttonBackgroundColor = brightness == Brightness.dark ? colorScheme.surface : colorScheme.primary;
+
+    return Card(
+      color: backgroundColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)), // CardTheme 값 사용 또는 직접 지정
+      clipBehavior: Clip.antiAlias,
+      child: InkWell( // 카드 전체 클릭 가능하게
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(icon, size: 32, color: onColorMuted),
+                    const SizedBox(height: 12),
+                    Text(
+                      title,
+                      style: textTheme.titleLarge?.copyWith(
+                        color: onColor,
+                        fontWeight: FontWeight.bold
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        description,
-                        style: GoogleFonts.notoSansKr(
-                          fontSize: 14,
-                          color: AppColors.textLightGray,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                // 버튼
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.white),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    buttonText,
-                    style: GoogleFonts.notoSansKr(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.white,
                     ),
-                  ),
+                    const SizedBox(height: 8),
+                    Text(
+                      description,
+                      style: textTheme.bodyMedium?.copyWith(color: onColorMuted),
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton( // 버튼 스타일 변경
+                      onPressed: onTap,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: buttonBackgroundColor, 
+                        foregroundColor: buttonTextColor,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        textStyle: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.bold),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        elevation: 1,
+                      ),
+                      child: Text(buttonText),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _buildPlaceCard(String name, String description) {
-    return Container(
-      width: 160,
-      margin: const EdgeInsets.only(right: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 6,
-            offset: const Offset(0, 3),
-          ),
-        ],
+  // 추천 테마 타일
+  Widget _buildThemeTile(BuildContext context, String title, IconData icon, Color tileColor) {
+    final theme = Theme.of(context);
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      elevation: 0.5,
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: theme.dividerColor, width: 0.5)),
+      child: ListTile(
+        leading: CircleAvatar(
+          radius: 20, // 크기 조정
+          backgroundColor: tileColor, 
+          child: Icon(icon, color: theme.colorScheme.primary, size: 20)
+        ),
+        title: Text(title, style: theme.textTheme.titleMedium),
+        trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.textGray),
+        onTap: () { /* 테마 상세 화면 이동 */ },
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 이미지 (데모용 컬러 컨테이너)
-          Container(
-            height: 100,
-            decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.2),
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(12),
-                topRight: Radius.circular(12),
-              ),
-            ),
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                ClipRRect(
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(12),
-                    topRight: Radius.circular(12),
-                  ),
-                  child: Opacity(
-                    opacity: 0.7,
-                    child: Image.asset(
-                      AppAssets.splashBackgroundPath,
-                      fit: BoxFit.cover,
+    );
+  }
+}
+
+// --- 추천 장소 카드 데이터 모델 ---
+class _PlaceCardData {
+  final String title;
+  final String description;
+  final String imagePath;
+
+  const _PlaceCardData({
+    required this.title,
+    required this.description,
+    required this.imagePath,
+  });
+}
+
+// --- 추천 장소 카드 위젯 ---
+class _PlaceCard extends StatelessWidget {
+  final _PlaceCardData data;
+
+  const _PlaceCard({required this.data, Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final textTheme = theme.textTheme;
+
+    return SizedBox( // 카드 크기 지정을 위해 SizedBox 사용
+      width: 170, // 카드 너비 조정
+      child: Card(
+        margin: const EdgeInsets.only(left: 8, right: 8, bottom: 8), // 카드 간격
+        clipBehavior: Clip.antiAlias,
+        // CardTheme의 elevation, shape 적용됨
+        child: InkWell(
+          onTap: () { /* 장소 상세 화면 이동 */ },
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Image.asset(
+                data.imagePath,
+                height: 130, // 이미지 높이 조정
+                width: double.infinity,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    height: 130,
+                    color: theme.colorScheme.surfaceVariant, // 이미지 없을 때 배경색
+                    child: Center(
+                      child: Icon(
+                        Icons.image_not_supported_outlined,
+                        color: theme.colorScheme.onSurfaceVariant, 
+                        size: 32
+                      ),
                     ),
-                  ),
+                  );
+                },
+              ),
+              Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      data.title,
+                      style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      data.description,
+                      style: textTheme.bodySmall?.copyWith(color: AppColors.textGray),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ),
-                Center(
-                  child: Icon(
-                    name == '오사카성' ? Icons.castle_outlined :
-                    name == '도톤보리' ? Icons.restaurant_outlined :
-                    Icons.attractions_outlined,
-                    color: Colors.white,
-                    size: 40,
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  style: GoogleFonts.notoSansKr(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                    color: AppColors.textDark,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  description,
-                  style: GoogleFonts.notoSansKr(
-                    fontSize: 12,
-                    color: AppColors.textGray,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

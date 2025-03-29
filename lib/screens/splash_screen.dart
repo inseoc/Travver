@@ -21,7 +21,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     
     _animationController = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 2),
+      duration: const Duration(milliseconds: 1500),
     );
     
     _fadeInAnimation = Tween<double>(
@@ -34,11 +34,12 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     
     _animationController.forward();
     
-    // 3초 후 로그인 화면으로 이동
-    Timer(const Duration(seconds: 3), () {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => const LoginScreen()),
-      );
+    Timer(const Duration(milliseconds: 2500), () {
+      if (mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
+        );
+      }
     });
   }
 
@@ -50,28 +51,28 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
     return Scaffold(
       body: Container(
         width: double.infinity,
         height: double.infinity,
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              AppColors.splashGradientStart,
-              AppColors.splashGradientEnd,
+              // AppColors.splashGradientStart, // 기존 색상 주석 처리
+              // AppColors.splashGradientEnd,
+              Color(0xFFFFF0F5), // 연한 벚꽃색 (Lavender Blush)
+              Color(0xFFFFC0CB), // 조금 더 진한 벚꽃색 (Pink)
             ],
-          ),
-          image: DecorationImage(
-            image: const AssetImage(AppAssets.splashBackgroundPath),
-            fit: BoxFit.cover,
-            opacity: 0.2,
           ),
         ),
         child: Stack(
           children: [
-            // 하단에 오사카 랜드마크 실루엣
+            // 하단에 오사카 랜드마크 실루엣 (제거)
+            /*
             Positioned(
               bottom: 0,
               left: 0,
@@ -84,6 +85,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                 ),
               ),
             ),
+            */
             
             // 메인 콘텐츠
             Center(
@@ -95,31 +97,29 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                     // 로고
                     Image.asset(
                       AppAssets.logoPath,
-                      width: 200,
-                      height: 200,
+                      width: 180,
                     ),
                     
-                    const SizedBox(height: 30),
+                    const SizedBox(height: 24),
                     
                     // 앱 이름
-                    const Text(
+                    Text(
                       'Travver',
-                      style: TextStyle(
+                      style: textTheme.displayMedium?.copyWith(
                         color: Colors.white,
-                        fontSize: 36,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                     
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 8),
                     
                     // 태그라인
-                    const Text(
+                    Text(
                       '오사카 여행의 모든 것',
-                      style: TextStyle(
-                        color: AppColors.textLightGray,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w300,
+                      style: textTheme.bodyLarge?.copyWith(
+                        // color: AppColors.textLightGray, // 기존 색상 주석 처리
+                        color: AppColors.textDark, // 어두운 텍스트 색상으로 변경
+                        fontWeight: FontWeight.w400,
                       ),
                     ),
                   ],
@@ -129,13 +129,13 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
             
             // 하단 로딩 인디케이터
             Positioned(
-              bottom: 50,
+              bottom: 60,
               left: 0,
               right: 0,
               child: Center(
                 child: SizedBox(
-                  width: 40,
-                  height: 40,
+                  width: 32,
+                  height: 32,
                   child: CircularProgressIndicator(
                     valueColor: AlwaysStoppedAnimation<Color>(AppColors.secondary),
                     strokeWidth: 3,

@@ -1,8 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:travver/constants/app_colors.dart';
-import 'package:google_fonts/google_fonts.dart';
+// import 'package:google_fonts/google_fonts.dart'; // 테마 사용으로 불필요
 import 'package:travver/screens/home_screen.dart';
 import 'package:travver/constants/app_assets.dart';
+
+// Onboarding 페이지 데이터 모델
+class OnboardingItem {
+  final String title;
+  final String description;
+  final IconData? icon; // 아이콘은 선택적
+  final String? imagePath; // 이미지 경로 추가 (선택적)
+
+  const OnboardingItem({
+    required this.title,
+    required this.description,
+    this.icon,
+    this.imagePath,
+  });
+}
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -14,22 +29,23 @@ class OnboardingScreen extends StatefulWidget {
 class _OnboardingScreenState extends State<OnboardingScreen> {
   final PageController _pageController = PageController();
   int _currentPage = 0;
-  
+
+  // Onboarding 데이터 (이미지 경로 예시 추가)
   final List<OnboardingItem> _pages = [
-    OnboardingItem(
-      title: '오사카 여행 계획 세우기',
-      description: '편리한 계획 도구로 오사카 여행 일정을 효율적으로 구성해보세요.',
-      icon: Icons.map_outlined,
+    const OnboardingItem(
+      title: '나만의 오사카 여행 설계하기', // 문구 수정
+      description: 'AI 컨설턴트와 함께 당신의 취향에 꼭 맞는 오사카 여행 계획을 만들어보세요.', // 문구 수정
+      imagePath: AppAssets.landmarkSilhouettePath, // 첫 페이지는 이미지 사용
     ),
-    OnboardingItem(
-      title: '스마트한 예산 관리로 효율적인 여행',
-      description: '항목별 예산 설정과 지출 추적을 통해 오사카 여행 비용을 효율적으로 관리하세요.',
-      icon: Icons.account_balance_wallet,
+    const OnboardingItem(
+      title: '스마트한 예산 관리 도우미',
+      description: '정해진 예산 안에서 최대 만족을! 항목별 지출 계획과 최적화 제안을 받아보세요.',
+      icon: Icons.account_balance_wallet_outlined, // 아이콘 변경
     ),
-    OnboardingItem(
-      title: '오사카 현지 정보로 완벽한 여행 경험',
-      description: '최신 현지 정보와 추천 장소로 더욱 특별한 오사카 여행을 경험하세요.',
-      icon: Icons.location_city,
+    const OnboardingItem(
+      title: '실시간 오사카 여행 정보',
+      description: '놓치면 아쉬울 현지 이벤트, 맛집, 쇼핑 정보까지! Travver가 알려드릴게요.',
+      icon: Icons.local_offer_outlined, // 아이콘 변경
     ),
   ];
 
@@ -48,36 +64,51 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   void _nextPage() {
     if (_currentPage < _pages.length - 1) {
       _pageController.nextPage(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.ease,
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeInOut,
       );
     }
   }
 
   void _skip() {
-    _pageController.animateToPage(
-      _pages.length - 1,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.ease,
-    );
+    // 마지막 페이지로 바로 이동하는 대신 홈 화면으로 이동하도록 변경 (선택적)
+    _navigateToHome(); 
+    // 또는 기존 로직 유지
+    // _pageController.animateToPage(
+    //   _pages.length - 1,
+    //   duration: const Duration(milliseconds: 400),
+    //   curve: Curves.easeInOut,
+    // );
   }
 
   void _navigateToHome() {
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (context) => const HomeScreen()),
+      // 페이드 애니메이션 전환 효과 추가 (선택적)
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) => const HomeScreen(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+        transitionDuration: const Duration(milliseconds: 500),
+      ),
+      // MaterialPageRoute(builder: (context) => const HomeScreen()), // 기존 방식
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final textTheme = theme.textTheme;
+    final colorScheme = theme.colorScheme;
+
     return Scaffold(
-      backgroundColor: Colors.white,
+      // backgroundColor: Colors.white, // 테마의 scaffoldBackgroundColor 사용
       body: SafeArea(
         child: Column(
           children: [
             // 상단 헤더 (페이지 인디케이터 및 스킵 버튼)
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -85,32 +116,35 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   Row(
                     children: List.generate(
                       _pages.length,
-                      (index) => Container(
-                        width: index == _currentPage ? 20 : 8,
+                      (index) => AnimatedContainer(
+                        duration: const Duration(milliseconds: 300),
+                        width: index == _currentPage ? 24 : 8,
                         height: 8,
-                        margin: const EdgeInsets.only(right: 4),
+                        margin: const EdgeInsets.only(right: 5),
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(4),
                           color: index == _currentPage
-                              ? AppColors.primary
-                              : Colors.grey.shade300,
+                              ? colorScheme.primary // 테마 색상 사용
+                              : colorScheme.primary.withOpacity(0.3), // 비활성 색상 조정
                         ),
                       ),
                     ),
                   ),
                   
-                  // 스킵 버튼 (마지막 페이지가 아닐 때만 표시)
+                  // 스킵 버튼
                   if (_currentPage < _pages.length - 1)
                     TextButton(
                       onPressed: _skip,
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppColors.textGray, // 테마 색상 사용
+                      ),
                       child: Text(
                         '건너뛰기',
-                        style: GoogleFonts.notoSansKr(
-                          fontSize: 14,
-                          color: AppColors.textGray,
-                        ),
+                        style: textTheme.labelMedium, // 테마 텍스트 스타일 사용
                       ),
-                    ),
+                    )
+                  else 
+                    const SizedBox(height: 48), // 마지막 페이지에서 스킵 버튼 공간 확보
                 ],
               ),
             ),
@@ -122,67 +156,59 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 onPageChanged: _onPageChanged,
                 itemCount: _pages.length,
                 itemBuilder: (context, index) {
-                  return Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      // 일러스트레이션
-                      Container(
-                        width: 240,
-                        height: 240,
-                        decoration: BoxDecoration(
-                          color: AppColors.primary.withOpacity(0.1),
-                          shape: BoxShape.circle,
-                        ),
-                        child: index == 0 ? 
-                          // 첫 번째 화면에서는 오사카 랜드마크 이미지 사용
-                          ClipOval(
-                            child: Padding(
-                              padding: const EdgeInsets.all(50),
-                              child: Image.asset(
-                                AppAssets.landmarkSilhouettePath,
-                                color: AppColors.primary,
+                  final item = _pages[index];
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 32.0), // 좌우 패딩 추가
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        // 일러스트레이션 또는 아이콘
+                        Container(
+                          width: MediaQuery.of(context).size.width * 0.6, // 화면 너비 비례
+                          height: MediaQuery.of(context).size.width * 0.6,
+                          margin: const EdgeInsets.only(bottom: 48), // 하단 마진 증가
+                          decoration: BoxDecoration(
+                            // color: colorScheme.primary.withOpacity(0.05), // 배경색은 선택적
+                            shape: BoxShape.circle, // 원형 유지 또는 제거
+                          ),
+                          child: item.imagePath != null
+                            ? Padding(
+                                padding: const EdgeInsets.all(40), // 내부 패딩 조정
+                                child: Image.asset(
+                                  item.imagePath!,
+                                  color: colorScheme.primary, // 테마 색상 적용
+                                ),
+                              )
+                            : Icon(
+                                item.icon,
+                                size: 100,
+                                color: colorScheme.primary,
                               ),
-                            ),
-                          ) : 
-                          // 나머지 화면에서는 아이콘 사용
-                          Icon(
-                            _pages[index].icon,
-                            size: 100,
-                            color: AppColors.primary,
-                          ),
-                      ),
-                      
-                      const SizedBox(height: 40),
-                      
-                      // 제목
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                        child: Text(
-                          _pages[index].title,
+                        ),
+                        
+                        // 제목
+                        Text(
+                          item.title,
                           textAlign: TextAlign.center,
-                          style: GoogleFonts.notoSansKr(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.textDark,
+                          style: textTheme.displaySmall?.copyWith( // 테마 스타일 적용
+                            fontWeight: FontWeight.bold, 
                           ),
                         ),
-                      ),
-                      
-                      const SizedBox(height: 16),
-                      
-                      // 설명
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 40),
-                        child: Text(
-                          _pages[index].description,
+                        
+                        const SizedBox(height: 16),
+                        
+                        // 설명
+                        Text(
+                          item.description,
                           textAlign: TextAlign.center,
-                          style: GoogleFonts.notoSansKr(
-                            fontSize: 16,
+                          style: textTheme.bodyMedium?.copyWith( // 테마 스타일 적용
                             color: AppColors.textGray,
+                            height: 1.5, // 줄 간격 조정
                           ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 60), // 하단 여백 추가
+                      ],
+                    ),
                   );
                 },
               ),
@@ -190,73 +216,32 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             
             // 하단 버튼 영역
             Padding(
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
               child: _currentPage == _pages.length - 1
                   ? Column(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        // 시작하기 버튼
+                        // 시작하기 버튼 (테마 적용)
                         ElevatedButton(
                           onPressed: _navigateToHome,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primary,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(28),
-                            ),
-                          ),
-                          child: Text(
-                            '시작하기',
-                            style: GoogleFonts.notoSansKr(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
+                          child: const Text('Travver 시작하기'), // 버튼 텍스트 변경
                         ),
                         
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 12),
                         
-                        // 로그인 버튼
+                        // 로그인 버튼 (테마 적용)
                         OutlinedButton(
                           onPressed: () {
-                            // 로그인 화면으로 이동
-                            Navigator.pop(context);
+                            Navigator.pop(context); // 이전 화면(로그인)으로 돌아가기
                           },
-                          style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: AppColors.primary),
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(28),
-                            ),
-                          ),
-                          child: Text(
-                            '로그인',
-                            style: GoogleFonts.notoSansKr(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.primary,
-                            ),
-                          ),
+                          child: const Text('이미 계정이 있어요'), // 버튼 텍스트 변경
                         ),
                       ],
                     )
+                  // 다음 버튼 (테마 적용)
                   : ElevatedButton(
                       onPressed: _nextPage,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(28),
-                        ),
-                      ),
-                      child: Text(
-                        '다음',
-                        style: GoogleFonts.notoSansKr(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
+                      child: const Text('다음'),
                     ),
             ),
           ],
@@ -264,16 +249,4 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       ),
     );
   }
-}
-
-class OnboardingItem {
-  final String title;
-  final String description;
-  final IconData icon;
-
-  OnboardingItem({
-    required this.title,
-    required this.description,
-    required this.icon,
-  });
 } 
