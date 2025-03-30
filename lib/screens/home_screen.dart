@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 // import 'package:google_fonts/google_fonts.dart'; // 테마 사용으로 불필요
 import 'package:travver/constants/app_colors.dart'; // 부분적으로 필요할 수 있음
 import 'package:travver/constants/app_assets.dart';
+import 'ai_consultant_screen.dart'; // AI 컨설턴트 화면 import
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -155,8 +156,14 @@ class _HomeTabContent extends StatelessWidget {
                 description: 'AI와 대화하며 나만의 오사카 루트 완성!',
                 backgroundColor: theme.colorScheme.primaryContainer,
                 icon: Icons.assistant_outlined,
-                buttonText: '대화 시작하기',
-                onTap: () { /* AI 컨설턴트 화면 이동 */ },
+                buttonText: '시작하기',
+                onTap: () {
+                  // AI 컨설턴트 화면으로 이동
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const AiConsultantScreen()),
+                  );
+                },
               ),
               const SizedBox(height: 16),
               _buildFeatureCard(
@@ -166,7 +173,19 @@ class _HomeTabContent extends StatelessWidget {
                 backgroundColor: theme.colorScheme.secondaryContainer,
                 icon: Icons.savings_outlined,
                 buttonText: '예산 관리 시작',
-                onTap: () { /* 예산 관리 화면 이동 */ },
+                onTap: () {
+                  // TODO: 예산 관리 화면으로 이동하는 로직 구현
+                  print('예산 관리 시작 버튼 클릭됨');
+                   // 예시: 예산 탭으로 이동
+                   // DefaultTabController.of(context)?.animateTo(2);
+                   // 또는 Navigator 사용
+                   // Navigator.push(context, MaterialPageRoute(builder: (context) => BudgetScreen()));
+
+                  // 현재 구조에서는 BottomNavigationBar를 직접 제어하기 어려움
+                  // 상태 관리 솔루션(Provider, Riverpod 등)을 사용하거나
+                  // HomeScreen의 _currentIndex를 변경하는 콜백을 전달해야 함.
+                  // 임시로 콘솔 출력만 유지
+                },
               ),
             ],
           ),
@@ -248,56 +267,49 @@ class _HomeTabContent extends StatelessWidget {
     final Brightness brightness = ThemeData.estimateBrightnessForColor(backgroundColor);
     final Color onColor = brightness == Brightness.dark ? Colors.white : Colors.black;
     final Color onColorMuted = onColor.withOpacity(0.7);
-    final Color buttonTextColor = brightness == Brightness.dark ? colorScheme.primary : colorScheme.onPrimary;
-    final Color buttonBackgroundColor = brightness == Brightness.dark ? colorScheme.surface : colorScheme.primary;
 
     return Card(
+      elevation: 0,
       color: backgroundColor,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)), // CardTheme 값 사용 또는 직접 지정
-      clipBehavior: Clip.antiAlias,
-      child: InkWell( // 카드 전체 클릭 가능하게
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(icon, size: 32, color: onColorMuted),
-                    const SizedBox(height: 12),
-                    Text(
-                      title,
-                      style: textTheme.titleLarge?.copyWith(
-                        color: onColor,
-                        fontWeight: FontWeight.bold
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      description,
-                      style: textTheme.bodyMedium?.copyWith(color: onColorMuted),
-                    ),
-                    const SizedBox(height: 16),
-                    ElevatedButton( // 버튼 스타일 변경
-                      onPressed: onTap,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: buttonBackgroundColor, 
-                        foregroundColor: buttonTextColor,
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        textStyle: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.bold),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        elevation: 1,
-                      ),
-                      child: Text(buttonText),
-                    ),
-                  ],
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, size: 28, color: onColor),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold, color: onColor),
+                  ),
                 ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              description,
+              style: textTheme.bodyMedium?.copyWith(color: onColorMuted),
+            ),
+            const SizedBox(height: 16),
+            Align(
+              alignment: Alignment.centerRight,
+              child: ElevatedButton(
+                onPressed: onTap, // 전달받은 onTap 콜백 사용
+                style: ElevatedButton.styleFrom(
+                  foregroundColor: backgroundColor, // 버튼 텍스트/아이콘 색 (배경색과 대비되도록)
+                  backgroundColor: onColor, // 버튼 배경색
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  textStyle: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                child: Text(buttonText), // 변경된 버튼 텍스트 사용
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
