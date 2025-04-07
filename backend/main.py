@@ -9,6 +9,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 
+from agents import Runner
+
+from agent_module.openai_agent import TravelAgent
+from utils.prompt import AgentPromptTemplate
+
 
 app = FastAPI(title="Travver API", description="여행 계획 정보를 관리하는 API")
 
@@ -62,8 +67,8 @@ class TravelPlanData(BaseModel):
     gender: Optional[str] = None
     travelStartDate: Optional[str] = None
     travelEndDate: Optional[str] = None
-    departureTime: Optional[str] = None
-    arrivalTime: Optional[str] = None
+    kor_departureTime: Optional[str] = None
+    jpn_departureTime: Optional[str] = None
     numberOfTravelers: Optional[int] = None
     accommodationLocation: Optional[str] = None
 
@@ -74,15 +79,46 @@ class TravelPlanData(BaseModel):
                 "gender": "male",
                 "travelStartDate": "2024-07-01T00:00:00.000Z",
                 "travelEndDate": "2024-07-05T00:00:00.000Z",
-                "departureTime": "09:00",
-                "arrivalTime": "18:00",
+                "kor_departureTime": "09:00",
+                "jpn_departureTime": "18:00",
                 "numberOfTravelers": 2,
                 "accommodationLocation": "오사카 중앙역 근처"
             }
         }
 
+# 여행 선호도 데이터 모델
+class TravelPreferenceData(BaseModel):
+    userPreference: str  # 사용자가 입력한 여행 선호도 텍스트
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "userPreference": "쇼핑과 맛집 탐방을 좋아하고, 유명 관광지보다는 현지인들이 많이 가는 곳을 선호합니다."
+            }
+        }
+
+# 프롬프트 요청 모델
+class PromptRequestData(BaseModel):
+    plan_id: int  # 여행 계획 ID
+    preference_id: Optional[int] = None  # 선호도 ID (선택 사항)
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "plan_id": 0,
+                "preference_id": 0
+            }
+        }
+
 # 여행 계획 저장소 (임시, 실제로는 DB 연결 필요)
 travel_plans = []
+# 여행 선호도 저장소 (임시, 실제로는 DB 연결 필요)
+travel_preferences = []
+# 생성된 여행 계획 저장소
+generated_plans = []
+
+# 여행 에이전트 초기화
+travel_agent = TravelAgent()
 
 
 @app.get("/root")
@@ -132,11 +168,10 @@ async def create_travel_plan(plan_data: TravelPlanData):
         travel_plan = {
             'ageGroup': '20대', 
             'gender': 'male', 
-            'travelStartDate': 
-            '2025-04-08T00:00:00.000', 
+            'travelStartDate': '2025-04-08T00:00:00.000', 
             'travelEndDate': '2025-04-10T00:00:00.000', 
-            'departureTime': '22:31', 
-            'arrivalTime': '16:31', 
+            'kor_departureTime': '22:31', 
+            'jpn_departureTime': '16:31', 
             'numberOfTravelers': 2, 
             'accommodationLocation': '', 
             'created_at': '2025-04-02T22:31:29+0900', 
@@ -158,6 +193,124 @@ async def create_travel_plan(plan_data: TravelPlanData):
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"서버 오류: {str(e)}")
+
+
+@app.post("/api/travel-plans/preferences")
+async def add_travel_preference(preference_data: TravelPreferenceData):
+    """
+    여행 계획에 사용자의 선호도 정보를 추가합니다.
+    
+    클라이언트에서 제공된 여행 계획 데이터와 사용자 선호도 텍스트를 저장합니다.
+    """
+    try:
+        # 데이터 검증 로직은 필요에 따라 추가
+        preference = preference_data.dict()
+        
+        travel_preferences.append(preference)
+        
+        # 응답 헤더에 UTF-8 인코딩 명시
+        return JSONResponse(
+            content={
+                "status": "success", 
+                "message": "여행 선호도가 성공적으로 저장되었습니다.", 
+                "data": preference
+            },
+            headers={"Content-Type": "application/json; charset=utf-8"}
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"서버 오류: {str(e)}")
+
+
+@app.post("/api/travel-plans/generate-prompt")
+async def generate_travel_prompt(request_data: PromptRequestData):
+    """
+    여행 계획과 선호도 정보를 기반으로 최종 프롬프트를 생성합니다.
+    
+    plan_id와 preference_id를 입력받아 해당 데이터를 조합한 프롬프트를 생성합니다.
+    """
+    try:
+        # 여행 계획 데이터 확인
+        if request_data.plan_id < 0 or request_data.plan_id >= len(travel_plans):
+            raise HTTPException(status_code=404, detail="해당 여행 계획을 찾을 수 없습니다.")
+        
+        # 선호도 정보 확인 (선택적)
+        preference = None
+        if request_data.preference_id is not None:
+            if request_data.preference_id < 0 or request_data.preference_id >= len(travel_preferences):
+                raise HTTPException(status_code=404, detail="해당 여행 선호도를 찾을 수 없습니다.")
+            preference = travel_preferences[request_data.preference_id]
+        
+        # 프롬프트 생성
+        travel_plan = travel_plans[request_data.plan_id]
+        final_prompt = AgentPromptTemplate.create_final_prompt(travel_plan, preference)
+        
+        # 응답 헤더에 UTF-8 인코딩 명시
+        return JSONResponse(
+            content={
+                "status": "success", 
+                "message": "프롬프트가 성공적으로 생성되었습니다.", 
+                "data": {
+                    "prompt": final_prompt,
+                    "travel_plan": travel_plan,
+                    "preference": preference
+                }
+            },
+            headers={"Content-Type": "application/json; charset=utf-8"}
+        )
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"프롬프트 생성 중 오류: {str(e)}")
+
+
+@app.post("/api/travel-plans/generate")
+async def generate_travel_plan_with_agent(request_data: PromptRequestData):
+    """
+    여행 계획과 선호도 정보를 기반으로 에이전트를 통해 여행 계획을 생성합니다.
+    
+    plan_id와 preference_id를 입력받아 AI 에이전트를 통해 여행 계획을 생성합니다.
+    """
+    try:
+        # 여행 계획 데이터 확인
+        if request_data.plan_id < 0 or request_data.plan_id >= len(travel_plans):
+            raise HTTPException(status_code=404, detail="해당 여행 계획을 찾을 수 없습니다.")
+        
+        # 선호도 정보 확인 (선택적)
+        preference = None
+        if request_data.preference_id is not None:
+            if request_data.preference_id < 0 or request_data.preference_id >= len(travel_preferences):
+                raise HTTPException(status_code=404, detail="해당 여행 선호도를 찾을 수 없습니다.")
+            preference = travel_preferences[request_data.preference_id]
+        
+        # 여행 계획 데이터
+        travel_plan = travel_plans[request_data.plan_id]
+        
+        # 여행 에이전트에 프롬프트 설정
+        travel_agent.set_prompt_from_data(travel_plan, preference)
+        
+        # 여행 계획 생성
+        result = travel_agent.generate_travel_plan()
+        
+        # 생성 결과 저장
+        generated_plans.append(result)
+        result_id = len(generated_plans) - 1
+        
+        # 응답 헤더에 UTF-8 인코딩 명시
+        return JSONResponse(
+            content={
+                "status": "success", 
+                "message": "여행 계획이 성공적으로 생성되었습니다.", 
+                "data": {
+                    "result_id": result_id,
+                    "plan": result
+                }
+            },
+            headers={"Content-Type": "application/json; charset=utf-8"}
+        )
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"여행 계획 생성 중 오류: {str(e)}")
 
 
 @app.get("/api/travel-plans/")
@@ -188,13 +341,67 @@ async def get_travel_plan(plan_id: int):
     return JSONResponse(
         content={
             "status": "success",
-            "current_time": datetime.now(KST).strftime("%Y년 %m월 %d일 %H:%M:%S"),
             "data": travel_plans[plan_id]
         },
         headers={"Content-Type": "application/json; charset=utf-8"}
     )
 
+
+@app.get("/api/travel-plans/generated/{result_id}")
+async def get_generated_plan(result_id: int):
+    """
+    생성된 여행 계획 결과를 조회합니다.
+    
+    result_id: 조회할 생성 결과의 인덱스
+    """
+    if result_id < 0 or result_id >= len(generated_plans):
+        raise HTTPException(status_code=404, detail="해당 생성 결과를 찾을 수 없습니다.")
+    
+    return JSONResponse(
+        content={
+            "status": "success",
+            "data": generated_plans[result_id]
+        },
+        headers={"Content-Type": "application/json; charset=utf-8"}
+    )
+
+
+@app.get("/api/travel-plans/preferences/")
+async def get_travel_preferences():
+    """
+    저장된 모든 여행 선호도를 조회합니다.
+    """
+    return JSONResponse(
+        content={
+            "status": "success",
+            "count": len(travel_preferences),
+            "data": travel_preferences
+        },
+        headers={"Content-Type": "application/json; charset=utf-8"}
+    )
+
+
+@app.get("/api/travel-plans/preferences/{preference_id}")
+async def get_travel_preference(preference_id: int):
+    """
+    특정 여행 선호도를 조회합니다.
+    
+    preference_id: 조회할 여행 선호도의 인덱스
+    """
+    if preference_id < 0 or preference_id >= len(travel_preferences):
+        raise HTTPException(status_code=404, detail="해당 여행 선호도를 찾을 수 없습니다.")
+    
+    return JSONResponse(
+        content={
+            "status": "success",
+            "data": travel_preferences[preference_id]
+        },
+        headers={"Content-Type": "application/json; charset=utf-8"}
+    )
+
+
 # 서버 실행 테스트용
 if __name__ == "__main__":
     import uvicorn
+    
     uvicorn.run(app, host="0.0.0.0", port=1234) 

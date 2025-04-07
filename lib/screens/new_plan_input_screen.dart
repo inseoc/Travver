@@ -415,7 +415,7 @@ class _NewPlanInputScreenState extends State<NewPlanInputScreen> {
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      const Text('출발 시간', style: TextStyle(fontSize: 14, color: Colors.grey)),
+                                      const Text('한국 출국 시간', style: TextStyle(fontSize: 14, color: Colors.grey)),
                                       const SizedBox(height: 4),
                                       InkWell(
                                         onTap: () => _selectTime(context, true),
@@ -450,7 +450,7 @@ class _NewPlanInputScreenState extends State<NewPlanInputScreen> {
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      const Text('도착 시간', style: TextStyle(fontSize: 14, color: Colors.grey)),
+                                      const Text('일본 출국 시간', style: TextStyle(fontSize: 14, color: Colors.grey)),
                                       const SizedBox(height: 4),
                                       InkWell(
                                         onTap: () => _selectTime(context, false),

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:async'; // Future.delayed 사용
+import 'dart:convert'; // JSON 인코딩을 위해 추가
+import 'package:http/http.dart' as http; // HTTP 요청을 위해 추가
 
 // 채팅 메시지 모델
 class ChatMessage {
@@ -22,6 +24,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
   final List<ChatMessage> _messages = [];
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController(); // 스크롤 컨트롤러
+  bool _isLoading = false; // API 요청 상태를 관리하기 위한 변수
 
   @override
   void initState() {
@@ -51,13 +54,57 @@ class _AiChatScreenState extends State<AiChatScreen> {
 
     // 사용자 메시지 후 AI 응답 추가 및 다음 화면 이동 로직
     if (isUserMessage && addResponse) {
-      Future.delayed(const Duration(milliseconds: 500), () {
-        _addMessage('네, 알겠습니다. 해당 정보를 반영하겠습니다.', false);
+      // 사용자 메시지를 API로 전송
+      _sendUserPreferenceToAPI(text);
+    }
+  }
 
-        // AI 응답 후 잠시 뒤 다음 화면으로 이동 (예시)
+  // 사용자 선호도를 API로 전송하는 함수
+  Future<void> _sendUserPreferenceToAPI(String preference) async {
+    setState(() {
+      _isLoading = true; // 로딩 상태 시작
+    });
+
+    try {
+      // API 엔드포인트 URL (실제 서버 주소로 변경 필요)
+      final url = Uri.parse('http://localhost:1234/api/travel-plans/preferences');
+      
+      // 사용자 선호도 메시지와 기존 여행 계획 데이터를 합쳐서 전송
+      final dataToSend = {
+        ...widget.initialPlanData, // 기존 여행 계획 데이터
+        'userPreference': preference, // 사용자 선호도 메시지 추가
+      };
+      
+      // HTTP POST 요청 보내기
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+        },
+        body: jsonEncode(dataToSend),
+      );
+      
+      // 응답 처리
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        print('API 응답: ${response.body}');
+        
+        // AI 응답 메시지 추가
+        _addMessage('네, 알겠습니다. 해당 정보를 반영하겠습니다.', false);
+        
+        // 잠시 후 다음 화면으로 이동
         Future.delayed(const Duration(seconds: 1), () {
           _navigateToNextScreen();
         });
+      } else {
+        print('API 오류: ${response.statusCode} - ${response.body}');
+        _addMessage('죄송합니다. 정보 전송 중 오류가 발생했습니다. 다시 시도해주세요.', false);
+      }
+    } catch (error) {
+      print('API 요청 예외 발생: $error');
+      _addMessage('네트워크 오류가 발생했습니다. 연결을 확인하고 다시 시도해주세요.', false);
+    } finally {
+      setState(() {
+        _isLoading = false; // 로딩 상태 종료
       });
     }
   }
@@ -65,7 +112,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
   // 사용자 메시지 전송 처리
   void _sendMessage() {
     final text = _textController.text.trim();
-    if (text.isNotEmpty) {
+    if (text.isNotEmpty && !_isLoading) {
       _addMessage(text, true, addResponse: true);
       _textController.clear();
     }
@@ -86,8 +133,6 @@ class _AiChatScreenState extends State<AiChatScreen> {
           Navigator.pop(context);
       }
     }
-
-
   }
 
   @override
@@ -111,6 +156,12 @@ class _AiChatScreenState extends State<AiChatScreen> {
               },
             ),
           ),
+          // 로딩 표시
+          if (_isLoading)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8.0),
+              child: Center(child: CircularProgressIndicator()),
+            ),
           // 입력 영역
           _buildInputArea(),
         ],
@@ -168,16 +219,17 @@ class _AiChatScreenState extends State<AiChatScreen> {
               ),
               onSubmitted: (_) => _sendMessage(),
               textInputAction: TextInputAction.send,
+              enabled: !_isLoading, // 로딩 중에는 비활성화
               // TODO: 기존 디자인 시스템 스타일 적용
             ),
           ),
           IconButton(
             icon: const Icon(Icons.send),
-            onPressed: _sendMessage,
+            onPressed: _isLoading ? null : _sendMessage, // 로딩 중에는 비활성화
             // TODO: 기존 디자인 시스템 아이콘/버튼 스타일 적용
           ),
           TextButton(
-              onPressed: () {
+              onPressed: _isLoading ? null : () { // 로딩 중에는 비활성화
                 print('채팅 건너뛰기 선택됨');
                 _navigateToNextScreen(); // 건너뛰기 시 다음 화면 이동
               },
