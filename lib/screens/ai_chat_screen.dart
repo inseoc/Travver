@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:async'; // Future.delayed 사용
 import 'dart:convert'; // JSON 인코딩을 위해 추가
 import 'package:http/http.dart' as http; // HTTP 요청을 위해 추가
+import 'travel_plan_result_screen.dart'; // 결과 화면 import
 
 // 채팅 메시지 모델
 class ChatMessage {
@@ -25,6 +26,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController(); // 스크롤 컨트롤러
   bool _isLoading = false; // API 요청 상태를 관리하기 위한 변수
+  Map<String, dynamic> _generatedPlan = {}; // 생성된 여행 계획을 저장
 
   @override
   void initState() {
@@ -66,47 +68,139 @@ class _AiChatScreenState extends State<AiChatScreen> {
     });
 
     try {
-      // API 엔드포인트 URL (실제 서버 주소로 변경 필요)
-      final url = Uri.parse('http://localhost:1234/api/travel-plans/preferences');
+      // 서버 API 엔드포인트 URL (실제 서버 주소로 변경 필요)
+      final preferenceUrl = Uri.parse('http://localhost:1234/api/travel-plans/preferences');
       
-      // 사용자 선호도 메시지와 기존 여행 계획 데이터를 합쳐서 전송
-      final dataToSend = {
-        ...widget.initialPlanData, // 기존 여행 계획 데이터
-        'userPreference': preference, // 사용자 선호도 메시지 추가
+      // 사용자 선호도 데이터 생성
+      final preferenceData = {
+        'userPreference': preference, // 사용자 선호도 메시지
       };
       
-      // HTTP POST 요청 보내기
-      final response = await http.post(
-        url,
+      // HTTP POST 요청 보내기 - 선호도 저장
+      final preferenceResponse = await http.post(
+        preferenceUrl,
         headers: {
           'Content-Type': 'application/json; charset=utf-8',
         },
-        body: jsonEncode(dataToSend),
+        body: jsonEncode(preferenceData),
       );
       
-      // 응답 처리
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        print('API 응답: ${response.body}');
+      // 선호도 저장 응답 처리
+      if (preferenceResponse.statusCode == 200 || preferenceResponse.statusCode == 201) {
+        print('선호도 저장 API 응답: ${preferenceResponse.body}');
+        
+        // 기존 여행 계획에 선호도 추가
+        final updatedPlan = {
+          ...widget.initialPlanData,
+          'preference': preference,
+        };
         
         // AI 응답 메시지 추가
-        _addMessage('네, 알겠습니다. 해당 정보를 반영하겠습니다.', false);
+        _addMessage('네, 알겠습니다. 여행 계획을 생성하고 있습니다...', false);
         
-        // 잠시 후 다음 화면으로 이동
-        Future.delayed(const Duration(seconds: 1), () {
-          _navigateToNextScreen();
-        });
+        // 여행 계획 생성 요청 API 호출
+        await _requestTravelPlanGeneration(updatedPlan);
       } else {
-        print('API 오류: ${response.statusCode} - ${response.body}');
+        print('API 오류: ${preferenceResponse.statusCode} - ${preferenceResponse.body}');
         _addMessage('죄송합니다. 정보 전송 중 오류가 발생했습니다. 다시 시도해주세요.', false);
+        setState(() {
+          _isLoading = false;
+        });
       }
     } catch (error) {
       print('API 요청 예외 발생: $error');
       _addMessage('네트워크 오류가 발생했습니다. 연결을 확인하고 다시 시도해주세요.', false);
-    } finally {
       setState(() {
-        _isLoading = false; // 로딩 상태 종료
+        _isLoading = false;
       });
     }
+  }
+
+  // 여행 계획 생성 요청 API 호출
+  Future<void> _requestTravelPlanGeneration(Map<String, dynamic> planData) async {
+    try {
+      // 실제 여행 계획 생성 API URL
+      final generateUrl = Uri.parse('http://localhost:1234/api/generate-base-plan');
+      
+      // 여행 계획 생성 요청
+      final generateResponse = await http.post(
+        generateUrl,
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+        },
+        body: jsonEncode(planData),
+      );
+      
+      if (generateResponse.statusCode == 200 || generateResponse.statusCode == 201) {
+        // 응답으로 받은 여행 계획 데이터 파싱
+        final responseData = jsonDecode(generateResponse.body);
+        
+        // 생성된 여행 계획 저장
+        _generatedPlan = responseData['data'] ?? {};
+        
+        // 계획 생성 완료 후 메시지 추가
+        _addMessage('여행 계획이 생성되었습니다! 결과 화면으로 이동합니다.', false);
+        
+        // 잠시 후 결과 화면으로 이동
+        Future.delayed(const Duration(seconds: 1), () {
+          _navigateToResultScreen();
+        });
+      } else {
+        // 에러 처리
+        print('계획 생성 API 오류: ${generateResponse.statusCode} - ${generateResponse.body}');
+        _addMessage('여행 계획 생성 중 오류가 발생했습니다. 다시 시도해주세요.', false);
+        
+        // 에러 발생 시에도 임시 데이터로 화면 전환
+        _createSamplePlanData();
+        Future.delayed(const Duration(seconds: 1), () {
+          _navigateToResultScreen();
+        });
+      }
+    } catch (error) {
+      print('계획 생성 API 예외 발생: $error');
+      _addMessage('여행 계획 생성 중 네트워크 오류가 발생했습니다.', false);
+      
+      // 예외 발생 시에도 임시 데이터로 화면 전환
+      _createSamplePlanData();
+      Future.delayed(const Duration(seconds: 1), () {
+        _navigateToResultScreen();
+      });
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  // 임시 샘플 데이터 생성 (API 연동 전 테스트용)
+  void _createSamplePlanData() {
+    // 기존 계획 데이터에 임시 일정 추가
+    _generatedPlan = {
+      ...widget.initialPlanData,
+      'preference': _textController.text.isEmpty ? '선호도 정보 없음' : _textController.text,
+      'itinerary': [
+        {
+          'date': widget.initialPlanData['start_date'] ?? '여행 첫째날',
+          'activities': [
+            {
+              'time': '09:00',
+              'title': '호텔 체크아웃 및 아침식사',
+              'description': '호텔 레스토랑에서 아침식사'
+            },
+            {
+              'time': '11:00',
+              'title': '현지 관광지 방문',
+              'description': '인기 관광지 방문'
+            },
+            {
+              'time': '13:00',
+              'title': '점심식사',
+              'description': '현지 맛집에서 점심식사'
+            }
+          ]
+        }
+      ]
+    };
   }
 
   // 사용자 메시지 전송 처리
@@ -118,21 +212,41 @@ class _AiChatScreenState extends State<AiChatScreen> {
     }
   }
 
-  // 다음 화면으로 이동하는 함수 (예시)
-  void _navigateToNextScreen() {
-    print('다음 화면으로 이동합니다.');
-    // TODO: 실제 다음 화면으로 이동하는 Navigator 로직 구현
-    // 예를 들어, 결과 화면이나 플랜 상세 화면 등
-    // Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => ResultScreen()));
-
-    // 임시로 이전 화면으로 돌아가기
-    if(Navigator.canPop(context)){
-      Navigator.pop(context);
-      // 이전 화면(Input)도 닫기
-      if(Navigator.canPop(context)){
-          Navigator.pop(context);
-      }
+  // 결과 화면으로 이동하는 함수
+  void _navigateToResultScreen() {
+    // 생성된 여행 계획이 없으면 임시 데이터 생성
+    if (_generatedPlan.isEmpty) {
+      _createSamplePlanData();
     }
+    
+    Navigator.pushReplacement(
+      context, 
+      MaterialPageRoute(
+        builder: (context) => TravelPlanResultScreen(
+          planData: _generatedPlan,
+        )
+      )
+    );
+  }
+
+  // 건너뛰기 기능
+  void _skipAndGenerateDefault() {
+    setState(() {
+      _isLoading = true;
+    });
+    
+    _addMessage('기본 여행 계획을 생성합니다...', false);
+    
+    // 기본 선호도 데이터로 API 호출
+    _createSamplePlanData();
+    
+    // 잠시 후 결과 화면으로 이동
+    Future.delayed(const Duration(seconds: 1), () {
+      setState(() {
+        _isLoading = false;
+      });
+      _navigateToResultScreen();
+    });
   }
 
   @override
@@ -140,7 +254,6 @@ class _AiChatScreenState extends State<AiChatScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('AI 채팅'),
-        // TODO: 기존 디자인 시스템에 맞는 AppBar 스타일 적용
       ),
       body: Column(
         children: [
@@ -186,7 +299,6 @@ class _AiChatScreenState extends State<AiChatScreen> {
           message.text,
           style: TextStyle(
             color: message.isUserMessage ? Colors.black87 : Colors.black87,
-            // TODO: 기존 디자인 시스템 폰트 스타일 적용
           ),
         ),
       ),
@@ -220,21 +332,18 @@ class _AiChatScreenState extends State<AiChatScreen> {
               onSubmitted: (_) => _sendMessage(),
               textInputAction: TextInputAction.send,
               enabled: !_isLoading, // 로딩 중에는 비활성화
-              // TODO: 기존 디자인 시스템 스타일 적용
             ),
           ),
           IconButton(
             icon: const Icon(Icons.send),
             onPressed: _isLoading ? null : _sendMessage, // 로딩 중에는 비활성화
-            // TODO: 기존 디자인 시스템 아이콘/버튼 스타일 적용
           ),
           TextButton(
               onPressed: _isLoading ? null : () { // 로딩 중에는 비활성화
                 print('채팅 건너뛰기 선택됨');
-                _navigateToNextScreen(); // 건너뛰기 시 다음 화면 이동
+                _skipAndGenerateDefault(); // 건너뛰기 시 기본 계획 생성
               },
               child: const Text('건너뛰기')
-              // TODO: 기존 디자인 시스템 스타일 적용
           )
         ],
       ),
