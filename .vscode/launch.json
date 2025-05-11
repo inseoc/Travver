@@ -1,0 +1,51 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python Debugger: Current File",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "env": {
+                "OPENAI_API_KEY": "your_openai_api_key_here"
+            }
+        },
+        {
+            "name": "Python: 현재 파일",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "stopOnEntry": false,
+            "showReturnValue": true,
+            "redirectOutput": true,
+            "debugOptions": [
+                "RedirectOutput",
+                "DebugStdLib"
+            ],
+            "env": {
+                "OPENAI_API_KEY": "your_openai_api_key_here"
+            }
+        },
+        {
+            "name": "Python: backend/main.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/backend/main.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "stopOnEntry": false,
+            "showReturnValue": true,
+            "redirectOutput": true,
+            "debugOptions": [
+                "RedirectOutput",
+                "DebugStdLib"
+            ],
+            "env": {
+                "OPENAI_API_KEY": "your_openai_api_key_here"
+            }
+        }
+    ]
+}

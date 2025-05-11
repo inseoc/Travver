@@ -1,3 +1,11 @@
+from dotenv import load_dotenv
+import os
+import json
+import re
+
+# .env 파일 로드
+load_dotenv("C:/Users/82108/Desktop/dev_study/travver/backend/.env")
+
 import pytz
 
 from pydantic import BaseModel
@@ -239,37 +247,53 @@ async def add_travel_preference(preference_data: TravelPreferenceData):
 
 
 @app.post("/api/generate-base-plan")
-async def generate_travel_plan(plan_data: Dict[str, Any]):
+async def generate_travel_plan():
     """
     AI를 사용하여 여행 계획을 생성합니다.
     
     사용자의 여행 정보와 선호도를 기반으로 상세한 여행 일정을 생성합니다.
     """
+    base_plan_prompt = AgentPromptTemplate.generate_base_plan_prompt.format(**travel_plan)
+    print(base_plan_prompt)
+
+    base_plan_agent = await travel_agent.get_base_plan()
+
     try:
-        # 기존 여행 계획 데이터 확인
-        if not plan_data:
-            raise HTTPException(status_code=400, detail="여행 계획 데이터가 필요합니다.")
+        generated_base_plan = await Runner.run(base_plan_agent, base_plan_prompt)
+        print(generated_base_plan)
+           
+        # 응답에서 JSON 부분 추출
+        generated_base_plan_text = generated_base_plan.new_items[0].raw_item.content[0].text
         
-        base_plan_prompt = AgentPromptTemplate.generate_base_plan_prompt.format(**travel_plan)
-        print(base_plan_prompt)
+        # 마크다운 코드 블록 제거 (```json ... ```)
+        json_match = re.search(r'```(?:json)?\s*\n?(.*?)```', generated_base_plan_text, re.DOTALL)
+        if json_match:
+            json_str = json_match.group(1).strip()
+        else:
+            json_str = generated_base_plan_text
+            
+        # JSON 파싱하여 객체로 변환
+        try:
+            travel_plan_data = json.loads(json_str)
+        except json.JSONDecodeError:
+            # JSON 파싱 실패 시 원본 텍스트 반환
+            travel_plan_data = {"error": "JSON 파싱 실패", "raw_text": generated_base_plan_text}
 
-
-
-
-
-        # 생성된 계획 저장
-        generated_plans.append(generated_plan)
-        
-        return JSONResponse(
-            content={
-                "status": "success",
-                "message": "여행 계획이 성공적으로 생성되었습니다.",
-                "data": generated_plan
-            },
-            headers={"Content-Type": "application/json; charset=utf-8"}
-        )
     except Exception as e:
+        print(f"여행 계획 생성 API 예외 발생: {e}")
         raise HTTPException(status_code=500, detail=f"서버 오류: {str(e)}")
+
+    # 생성된 계획 저장
+    generated_plans.append(generated_base_plan)
+    
+    return JSONResponse(
+        content={
+            "status": "success",
+            "message": "여행 계획이 성공적으로 생성되었습니다.",
+            "data": travel_plan_data
+        },
+        headers={"Content-Type": "application/json; charset=utf-8"}
+    )
 
 
 @app.post("/api/plan/edit-request")
@@ -286,8 +310,7 @@ async def request_plan_edit(edit_request: EditRequestModel):
         return JSONResponse(
             content={
                 "status": "success",
-                "message": "수정 요청이 접수되었습니다. 잠시 후 업데이트된 계획을 확인하세요.",
-                "requestId": "edit-" + datetime.now(KST).strftime("%Y%m%d%H%M%S")
+                "message": "수정 요청이 접수되었습니다. 잠시 후 업데이트된 계획을 확인하세요."
             },
             headers={"Content-Type": "application/json; charset=utf-8"}
         )
