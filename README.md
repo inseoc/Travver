@@ -1,3 +1,6 @@
+# 여행 컨설턴트 기능 데모
+https://github.com/user-attachments/assets/72c3ea83-2286-4f55-b76b-7a6adb3b187d
+
 # Travver
 Travel + Trigger 서비스로, 오사카 여행 충동을 일으키기 위해 만들어진 앱 서비스
 
