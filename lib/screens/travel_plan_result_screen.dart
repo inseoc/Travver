@@ -318,80 +318,85 @@ class _TravelPlanResultScreenState extends State<TravelPlanResultScreen> {
     print('일정 데이터: $_travelPlanData');
     print('현재 확장 상태: $_expandedDays');
     
+    // 정렬된 DAY 키 목록 (DAY1, DAY2, DAY3, ...)
+    final sortedDays = _travelPlanData!.keys.toList()
+      ..sort((a, b) => a.compareTo(b));
+    
     return ExpansionPanelList(
       elevation: 3,
       expandedHeaderPadding: const EdgeInsets.all(8),
       expansionCallback: (index, isExpanded) {
-        // isExpanded는 현재 패널이 확장되어 있는지 여부
-        // true면 현재 확장되어 있음, false면 닫혀있음
-        print('확장 콜백: index=$index, day=${_travelPlanData!.keys.elementAt(index)}, 현재 isExpanded=$isExpanded');
-        
         setState(() {
-          final day = _travelPlanData!.keys.elementAt(index);
-          // isExpanded가 true면 현재 열려있으므로 닫아야 함 (false로 설정)
-          // isExpanded가 false면 현재 닫혀있으므로 열어야 함 (true로 설정)
+          final day = sortedDays[index];
           _expandedDays[day] = !isExpanded;
-          
+          print('확장 콜백: index=$index, day=$day, 이전 상태=$isExpanded, 새 상태=${!isExpanded}');
           print('변경 후 $_expandedDays');
         });
       },
-      children: _travelPlanData!.entries.map<ExpansionPanel>((entry) {
-        final dayLabel = entry.key; // DAY1, DAY2, ...
-        final activities = entry.value as List<dynamic>;
-        final isExpanded = _expandedDays[dayLabel] ?? false;
+      children: sortedDays.map<ExpansionPanel>((day) {
+        final activities = _travelPlanData![day] as List<dynamic>;
+        final isExpanded = _expandedDays[day] ?? false;
         
-        print('패널 생성: $dayLabel, 확장 상태=$isExpanded');
+        print('패널 생성: $day, 확장 상태=$isExpanded');
         
         return ExpansionPanel(
+          isExpanded: isExpanded,
+          canTapOnHeader: true,
           headerBuilder: (context, isExpanded) {
             return ListTile(
               title: Text(
-                dayLabel,
+                day,
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 18,
                 ),
               ),
               subtitle: Text('${activities.length}개 일정'),
+              onTap: () {
+                setState(() {
+                  _expandedDays[day] = !isExpanded;
+                  print('ListTile 탭: $day, 새 상태=${!isExpanded}');
+                });
+              },
             );
           },
-          body: Column(
-            children: activities.map<Widget>((activity) {
-              // activity는 Map<String, dynamic> 형태
-              final time = activity['time'] ?? '';
-              final location = activity['location'] ?? '';
-              final description = activity['description'] ?? '';
-              
-              return ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                leading: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      time,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
+          body: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0),
+            child: Column(
+              children: activities.map<Widget>((activity) {
+                final time = activity['time'] ?? '';
+                final location = activity['location'] ?? '';
+                final description = activity['description'] ?? '';
+                
+                return ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  leading: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        time,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-                title: Text(
-                  location,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
+                    ],
                   ),
-                ),
-                subtitle: Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Text(description),
-                ),
-                isThreeLine: true,
-              );
-            }).toList(),
+                  title: Text(
+                    location,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  subtitle: Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(description),
+                  ),
+                  isThreeLine: true,
+                );
+              }).toList(),
+            ),
           ),
-          isExpanded: isExpanded,  // 명확하게 변수 사용
-          canTapOnHeader: true,    // 헤더를 클릭해도 확장/축소 가능하도록
         );
       }).toList(),
     );
