@@ -237,16 +237,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
     
     _addMessage('기본 여행 계획을 생성합니다...', false);
     
-    // 기본 선호도 데이터로 API 호출
-    _createSamplePlanData();
-    
-    // 잠시 후 결과 화면으로 이동
-    Future.delayed(const Duration(seconds: 1), () {
-      setState(() {
-        _isLoading = false;
-      });
-      _navigateToResultScreen();
-    });
+    // 빈 선호도 값으로 API 호출
+    _sendUserPreferenceToAPI("");
   }
 
   @override

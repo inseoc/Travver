@@ -432,7 +432,29 @@ class _TravelPlanResultScreenState extends State<TravelPlanResultScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('여행 계획 수정 요청'),
+        title: Row(
+          children: [
+            const Text('여행 계획 수정 요청'),
+            const SizedBox(width: 8),
+            Tooltip(
+              message: '변경 또는 추가하고 싶은 여행 계획 내용을 AI에게 알려주시면 알맞게 수정됩니다.',
+              child: InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: () {
+                  // 툴팁이 자동으로 표시되므로 별도 액션은 필요 없음
+                },
+                child: const Padding(
+                  padding: EdgeInsets.all(4.0),
+                  child: Icon(
+                    Icons.info_outline,
+                    size: 18,
+                    color: Colors.blue,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
         content: TextField(
           controller: editController,
           decoration: const InputDecoration(
@@ -442,18 +464,33 @@ class _TravelPlanResultScreenState extends State<TravelPlanResultScreen> {
           maxLines: 3,
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('취소'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (editController.text.trim().isNotEmpty) {
-                Navigator.pop(context);
-                _sendEditRequest(editController.text);
-              }
-            },
-            child: const Text('요청하기'),
+          Row(
+            children: [
+              Expanded(
+                child: TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: const Text('취소'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () {
+                    if (editController.text.trim().isNotEmpty) {
+                      Navigator.pop(context);
+                      _sendEditRequest(editController.text);
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: const Text('요청하기'),
+                ),
+              ),
+            ],
           ),
         ],
       ),
