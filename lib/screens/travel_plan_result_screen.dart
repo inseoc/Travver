@@ -125,7 +125,7 @@ class _TravelPlanResultScreenState extends State<TravelPlanResultScreen> {
       // 응답 처리
       if (response.statusCode == 200 || response.statusCode == 201) {
         // 성공적으로 요청 전송
-        final responseData = jsonDecode(response.body);
+        final responseData = jsonDecode(utf8.decode(response.bodyBytes));
         
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -135,7 +135,6 @@ class _TravelPlanResultScreenState extends State<TravelPlanResultScreen> {
         );
         
         // 수정된 계획 확인을 위한 새로고침 기능을 추가할 수 있음
-        // 지금은 간단히 몇 초 후 상태 업데이트
         Future.delayed(const Duration(seconds: 5), () {
           // 여기서 업데이트된 계획을 가져오는 API 호출 가능
         });
@@ -160,6 +159,75 @@ class _TravelPlanResultScreenState extends State<TravelPlanResultScreen> {
     } finally {
       setState(() {
         _isUpdating = false; // 업데이트 종료
+      });
+    }
+  }
+
+  // [추가] 파워J 모드(상세 일정) 요청 함수
+  Future<void> _requestComprehensivePlan() async {
+    setState(() {
+      _isUpdating = true;
+    });
+
+    try {
+      // 상세 일정 생성 API 호출
+      final url = Uri.parse('http://localhost:1234/api/generate-comprehensive-plan');
+      
+      // POST 요청 (필요 시 body에 현재 planId 등을 포함할 수 있음)
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+        },
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final responseBody = jsonDecode(utf8.decode(response.bodyBytes));
+        
+        if (responseBody['status'] == 'success') {
+          final newPlanData = responseBody['data'];
+          
+          setState(() {
+            // 받아온 상세 일정으로 데이터 업데이트
+            // 기존 메타데이터는 유지하고 일정 부분(_travelPlanData)만 교체
+            _travelPlanData = newPlanData;
+            
+            // 확장 상태 초기화 (DAY1 펼침)
+            _expandedDays = {};
+            if (_travelPlanData != null) {
+               _travelPlanData!.keys.forEach((day) {
+                _expandedDays[day] = day == 'DAY1';
+              });
+            }
+          });
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('파워J 모드: 상세 일정이 생성되었습니다!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } else {
+        print('API 오류: ${response.statusCode} - ${response.body}');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('오류 발생: ${response.statusCode}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      print('상세 일정 요청 예외: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('네트워크 오류가 발생했습니다.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      setState(() {
+        _isUpdating = false;
       });
     }
   }
@@ -199,7 +267,7 @@ class _TravelPlanResultScreenState extends State<TravelPlanResultScreen> {
                               CircularProgressIndicator(color: Colors.white),
                               SizedBox(height: 16),
                               Text(
-                                'AI가 여행 계획을 수정하고 있습니다...',
+                                'AI가 여행 계획을 고도화하고 있습니다...',
                                 style: TextStyle(color: Colors.white),
                               ),
                             ],
@@ -313,55 +381,73 @@ class _TravelPlanResultScreenState extends State<TravelPlanResultScreen> {
     );
   }
 
-  // 일별 일정을 접고 펼칠 수 있는 ExpansionPanelList 위젯
+// 일별 일정을 접고 펼칠 수 있는 ExpansionPanelList 위젯
   Widget _buildDailyItineraryExpansion() {
-    print('일정 데이터: $_travelPlanData');
-    print('현재 확장 상태: $_expandedDays');
-    
     // 정렬된 DAY 키 목록 (DAY1, DAY2, DAY3, ...)
+    // DAY1, DAY2, DAY10 순서로 정렬하기 위해 숫자 비교 로직 추가 (선택 사항, 기본 문자열 정렬도 동작함)
     final sortedDays = _travelPlanData!.keys.toList()
       ..sort((a, b) => a.compareTo(b));
     
     return ExpansionPanelList(
-      elevation: 3,
-      expandedHeaderPadding: const EdgeInsets.all(8),
+      elevation: 1,
+      expandedHeaderPadding: const EdgeInsets.all(0), // 펼쳐졌을 때 헤더 패딩 제거
       expansionCallback: (index, isExpanded) {
         setState(() {
           final day = sortedDays[index];
-          _expandedDays[day] = !isExpanded;
-          print('확장 콜백: index=$index, day=$day, 이전 상태=$isExpanded, 새 상태=${!isExpanded}');
-          print('변경 후 $_expandedDays');
+          // isExpanded는 탭 당시의 상태입니다. 
+          // 닫혀있음(false) -> 탭 -> 열려야 함(true)
+          // 열려있음(true) -> 탭 -> 닫혀야 함(false)
+          // 따라서 !isExpanded 값을 할당하는 것이 맞지만, 
+          // 안전하게 현재 상태를 반전시키는 로직을 사용합니다.
+          _expandedDays[day] = !(_expandedDays[day] ?? false);
         });
       },
       children: sortedDays.map<ExpansionPanel>((day) {
+        // 데이터 형식이 List가 아닐 경우 예외 처리
+        if (_travelPlanData![day] is! List) {
+             return ExpansionPanel(
+                headerBuilder: (context, isExpanded) => const ListTile(title: Text("Error")),
+                body: const SizedBox(),
+                isExpanded: false,
+             );
+        }
+
         final activities = _travelPlanData![day] as List<dynamic>;
         final isExpanded = _expandedDays[day] ?? false;
         
-        print('패널 생성: $day, 확장 상태=$isExpanded');
-        
         return ExpansionPanel(
           isExpanded: isExpanded,
-          canTapOnHeader: true,
+          canTapOnHeader: true, // 헤더 전체 탭 가능
           headerBuilder: (context, isExpanded) {
-            return ListTile(
-              title: Text(
-                day,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                ),
+            // [수정] ListTile 대신 Container + Row 사용
+            // ListTile이 탭 이벤트를 가로채는 문제를 방지합니다.
+            return Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+              alignment: Alignment.centerLeft,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    day,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                      color: Color(0xFF1F2937),
+                    ),
+                  ),
+                  Text(
+                    '${activities.length}개 일정',
+                    style: const TextStyle(
+                      color: Colors.grey,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
               ),
-              subtitle: Text('${activities.length}개 일정'),
-              onTap: () {
-                setState(() {
-                  _expandedDays[day] = !isExpanded;
-                  print('ListTile 탭: $day, 새 상태=${!isExpanded}');
-                });
-              },
             );
           },
           body: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8.0),
+            padding: const EdgeInsets.only(bottom: 16.0),
             child: Column(
               children: activities.map<Widget>((activity) {
                 final time = activity['time'] ?? '';
@@ -369,30 +455,20 @@ class _TravelPlanResultScreenState extends State<TravelPlanResultScreen> {
                 final description = activity['description'] ?? '';
                 
                 return ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                  leading: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        time,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-                    ],
+                  dense: true, // 리스트 간격 조밀하게
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                  leading: Text(
+                    time,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF3B82F6),
+                    ),
                   ),
                   title: Text(
                     location,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
-                  subtitle: Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text(description),
-                  ),
-                  isThreeLine: true,
+                  subtitle: Text(description),
                 );
               }).toList(),
             ),
@@ -402,26 +478,48 @@ class _TravelPlanResultScreenState extends State<TravelPlanResultScreen> {
     );
   }
 
+  // [수정됨] 하단 버튼 영역: 계획 수정하기(왼쪽) + 파워J 모드(오른쪽)
   Widget _buildBottomButtons() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(
-            child: ElevatedButton.icon(
-              icon: const Icon(Icons.edit),
-              label: const Text('계획 수정하기'),
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 12),
+      child: SafeArea(
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            // 왼쪽: 계획 수정하기
+            Expanded(
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.edit),
+                label: const Text('계획 수정하기'),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  backgroundColor: Colors.grey[200],
+                  foregroundColor: Colors.black87,
+                  elevation: 0,
+                ),
+                onPressed: _isUpdating ? null : () {
+                  _showEditRequestDialog();
+                },
               ),
-              onPressed: () {
-                // 수정 다이얼로그 표시
-                _showEditRequestDialog();
-              },
             ),
-          ),
-        ],
+            const SizedBox(width: 12), // 버튼 사이 간격
+            // 오른쪽: 파워J 모드
+            Expanded(
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.flash_on), // 번개 아이콘 등 강조
+                label: const Text('파워J 모드'),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  backgroundColor: const Color(0xFFF59E0B), // 강조 색상 (Amber/Orange)
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: _isUpdating ? null : () {
+                  _requestComprehensivePlan(); // 상세 일정 API 호출
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -440,9 +538,7 @@ class _TravelPlanResultScreenState extends State<TravelPlanResultScreen> {
               message: '변경 또는 추가하고 싶은 여행 계획 내용을 AI에게 알려주시면 알맞게 수정됩니다.',
               child: InkWell(
                 borderRadius: BorderRadius.circular(12),
-                onTap: () {
-                  // 툴팁이 자동으로 표시되므로 별도 액션은 필요 없음
-                },
+                onTap: () {},
                 child: const Padding(
                   padding: EdgeInsets.all(4.0),
                   child: Icon(
@@ -496,4 +592,4 @@ class _TravelPlanResultScreenState extends State<TravelPlanResultScreen> {
       ),
     );
   }
-} 
+}
