@@ -296,6 +296,43 @@ async def generate_travel_plan():
     )
 
 
+# 상세 일정 생성 기능
+@app.post("/api/generate-comprehensive-plan")
+async def generate_comprehensive_travel_plan():
+    """
+    AI를 사용하여 상세 여행 계획을 생성합니다. (Base Plan -> 상세화 2단계)
+    새로 추가될 버튼에서 이 API를 호출합니다.
+    """
+    print("상세 여행 계획 생성 요청 수신 (Comprehensive Plan)...")
+    
+    # 전역 변수 travel_plan 사용 (실제 서비스에서는 DB나 세션에서 조회)
+    if not travel_plan:
+         raise HTTPException(status_code=400, detail="여행 정보가 없습니다. 먼저 여행 정보를 입력해주세요.")
+
+    try:
+        # 1. TravelAgent의 새로운 오케스트레이션 메서드 호출
+        final_plan_data = await travel_agent.generate_comprehensive_plan(
+            travel_info=travel_plan,
+            prompt_template=AgentPromptTemplate
+        )
+
+        # 2. 결과 반환
+        return JSONResponse(
+            content={
+                "status": "success",
+                "message": "상세 여행 계획이 성공적으로 생성되었습니다.",
+                "data": final_plan_data
+            },
+            headers={"Content-Type": "application/json; charset=utf-8"}
+        )
+
+    except Exception as e:
+        print(f"상세 여행 계획 생성 API 예외 발생: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"서버 오류: {str(e)}")
+
+
 @app.post("/api/plan/edit-request")
 async def request_plan_edit(edit_request: EditRequestModel):
     """
