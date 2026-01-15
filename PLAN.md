@@ -15,6 +15,7 @@ Travver는 AI 기반의 스마트 여행 계획 앱입니다. 사용자의 선�
 | AI - 일정/상담 | OpenAI GPT-5.2 (Agent 기반) |
 | AI - 이미지 | Google Gemini Nano Banana Pro |
 | AI - 영상 | Google Gemini Veo 3.1 |
+| Map | flutter_map + Mapbox Style |
 | Database | TBD (SQLite / Supabase / Firebase) |
 
 ---
@@ -32,10 +33,11 @@ Travver는 AI 기반의 스마트 여행 계획 앱입니다. 사용자의 선�
 
 | 기능 | 구현 방식 | 이유 |
 |------|-----------|------|
-| AI 일정 생성 | **Agent** | 장소 검색, 거리 계산, 날씨 조회 등 다중 도구 조합 |
+| AI 일정 생성 | **Agent** | 장소 검색, 환율 조회 등 다중 도구 조합 |
 | AI 컨설턴트 | **Agent** | 실시간 정보 조회, 컨텍스트 기반 추천, 복합 추론 |
 | 사진 꾸미기 | 단순 API | 이미지 입력 → Gemini → 변환 이미지 출력 |
 | 나만의 영상 | 단순 API | 미디어 입력 → Veo → 영상 출력 |
+| 지도 경로 표시 | 클라이언트 렌더링 | 좌표 데이터 기반 마커 + 직선 연결 |
 
 ---
 
@@ -56,9 +58,7 @@ Travver는 AI 기반의 스마트 여행 계획 앱입니다. 사용자의 선�
 | Tool | 설명 | 외부 API |
 |------|------|----------|
 | `search_places` | 장소 검색 (관광지, 맛집, 숙소) | Google Places API |
-| `get_place_details` | 장소 상세 정보 (영업시간, 리뷰, 가격대) | Google Places API |
-| `calculate_route` | 두 지점 간 거리/이동시간 계산 | Google Maps Directions API |
-| `get_weather_forecast` | 여행 기간 날씨 예보 | OpenWeatherMap API |
+| `get_place_details` | 장소 상세 정보 (영업시간, 리뷰, 가격대, 좌표) | Google Places API |
 | `get_exchange_rate` | 현지 통화 환율 조회 | Exchange Rate API |
 | `search_accommodation` | 숙소 검색 및 가격 비교 | (TBD) Booking API |
 
@@ -68,24 +68,24 @@ Travver는 AI 기반의 스마트 여행 계획 앱입니다. 사용자의 선�
      ↓
 [1. 목적지 분석]
   - 도시 정보 파악
-  - 여행 적합 시즌 확인
+  - 여행 특성 분석
      ↓
 [2. 장소 수집] ← search_places, get_place_details
   - 여행 스타일에 맞는 장소 수집
   - 영업시간, 리뷰 점수 필터링
+  - 각 장소의 좌표(lat, lng) 수집
      ↓
-[3. 날씨/환율 조회] ← get_weather_forecast, get_exchange_rate
-  - 여행 기간 날씨 확인
+[3. 환율 조회] ← get_exchange_rate
   - 예산 환산
      ↓
-[4. 일정 최적화] ← calculate_route
-  - 동선 최적화 (거리/시간 기반)
+[4. 일정 구성]
+  - 지역 기반 장소 그룹핑
   - 하루 일정 시간 배분
   - 예산 배분
      ↓
 [5. 일정 생성]
   - Day별 타임라인 구성
-  - 각 장소별 예상 비용 산출
+  - 각 장소별 좌표 + 예상 비용 산출
      ↓
 [최종 일정 JSON 출력]
 ```
@@ -96,7 +96,6 @@ Travver는 AI 기반의 스마트 여행 계획 앱입니다. 사용자의 선�
   "destination": "오사카",
   "period": { "start": "2026-03-01", "end": "2026-03-04" },
   "total_budget": { "estimated": 850000, "currency": "KRW" },
-  "weather_summary": "맑음, 평균 15°C",
   "daily_plans": [
     {
       "day": 1,
@@ -104,6 +103,7 @@ Travver는 AI 기반의 스마트 여행 계획 앱입니다. 사용자의 선�
       "theme": "도톤보리 & 난바 탐방",
       "schedules": [
         {
+          "order": 1,
           "time": "10:00",
           "place": "구로몬 시장",
           "category": "맛집",
@@ -111,6 +111,16 @@ Travver는 AI 기반의 스마트 여행 계획 앱입니다. 사용자의 선�
           "estimated_cost": 15000,
           "description": "오사카의 부엌, 신선한 해산물 아침 식사",
           "location": { "lat": 34.6687, "lng": 135.5065 }
+        },
+        {
+          "order": 2,
+          "time": "12:00",
+          "place": "도톤보리",
+          "category": "관광",
+          "duration_min": 120,
+          "estimated_cost": 0,
+          "description": "글리코 사인과 네온 거리 탐방",
+          "location": { "lat": 34.6687, "lng": 135.5012 }
         }
       ]
     }
@@ -135,9 +145,7 @@ Travver는 AI 기반의 스마트 여행 계획 앱입니다. 사용자의 선�
 | Tool | 설명 | 외부 API |
 |------|------|----------|
 | `search_places` | 장소 검색 | Google Places API |
-| `get_weather` | 현재/예보 날씨 조회 | OpenWeatherMap API |
 | `get_exchange_rate` | 환율 조회 | Exchange Rate API |
-| `search_transportation` | 교통편 검색 | Google Maps / 현지 교통 API |
 | `get_current_trip` | 현재 여행 일정 조회 | 내부 DB |
 | `web_search` | 실시간 정보 검색 | (TBD) Search API |
 | `translate_text` | 현지어 번역 | Google Translate API |
@@ -152,8 +160,8 @@ Agent 추론:
   3. 리뷰 점수, 대기 시간 분석
      ↓
 응답: "현재 위치 기준 추천 라멘집 3곳입니다:
-      1. 이치란 도톤보리점 (도보 3분, 평점 4.5)
-      2. 킨류라멘 (도보 5분, 평점 4.3, 24시간)
+      1. 이치란 도톤보리점 (평점 4.5)
+      2. 킨류라멘 (평점 4.3, 24시간)
       ..."
 ```
 
@@ -162,7 +170,7 @@ Agent 추론:
 [사용자 질문]
      ↓
 [의도 분석]
-  - 장소 추천 / 날씨 / 교통 / 번역 / 일정 수정 / 일반 질문
+  - 장소 추천 / 번역 / 일정 수정 / 일반 질문
      ↓
 [필요 도구 선택 & 실행]
   - 병렬 실행 가능한 도구는 동시 호출
@@ -173,6 +181,92 @@ Agent 추론:
 [자연스러운 응답 생성]
   - 스트리밍 출력
 ```
+
+---
+
+## 지도 UI 컴포넌트
+
+### 개요
+여행 일정의 장소들을 지도 위에 시각적으로 표시하고, 이동 동선을 한눈에 파악할 수 있는 인터랙티브 지도 뷰
+
+### 기술 스택
+| 구성 | 기술 |
+|------|------|
+| 지도 라이브러리 | `flutter_map` (오픈소스, 무료) |
+| 타일 스타일 | Mapbox Streets / Light / Dark |
+| 마커 | Custom SVG 아이콘 (압정 스타일) |
+| 경로 | Polyline (직선 연결) |
+
+### 지도 뷰 디자인
+
+```
+┌─────────────────────────────────────┐
+│  [Day 1 ▼]          [전체보기] [+][-] │  ← 상단 컨트롤
+├─────────────────────────────────────┤
+│                                     │
+│         🔴 ①                        │
+│          ╲                          │
+│           ╲                         │
+│            🔴 ②                     │
+│             ╲                       │
+│              ╲                      │
+│               🔴 ③                  │
+│                ╲                    │
+│                 ╲                   │
+│                  🔴 ④              │
+│                                     │
+│                     [📍 현재위치]     │  ← 하단 버튼
+└─────────────────────────────────────┘
+```
+
+### 마커 스타일
+| 요소 | 스타일 |
+|------|--------|
+| 마커 아이콘 | 압정(Pin) 형태, Accent 컬러 (`#E67E22`) |
+| 마커 번호 | 흰색 원 + 방문 순서 숫자 |
+| 선택된 마커 | 크기 1.3배 확대 + 그림자 효과 |
+| 경로선 | 점선 (dashed), Primary 컬러 (`#2C3E50`), 3px 굵기 |
+
+### 마커 인터랙션
+| 액션 | 동작 |
+|------|------|
+| 마커 탭 | 장소 정보 카드 팝업 (장소명, 시간, 카테고리) |
+| 마커 롱프레스 | 전체 화면 상세 정보로 이동 |
+| 지도 드래그 | 자유롭게 이동 |
+| 핀치 줌 | 확대/축소 |
+
+### 경로 연결 로직
+```dart
+// 좌표 리스트를 받아 Polyline 생성
+List<LatLng> routePoints = schedules.map((s) =>
+  LatLng(s.location.lat, s.location.lng)
+).toList();
+
+Polyline(
+  points: routePoints,
+  color: AppColors.primary,
+  strokeWidth: 3.0,
+  isDotted: true,  // 점선 스타일
+)
+```
+
+### 장소 정보 팝업 카드
+```
+┌─────────────────────────┐
+│ ① 구로몬 시장            │
+│ 🍽️ 맛집 · 10:00 - 11:30  │
+│ ¥15,000                 │
+│ [상세보기]               │
+└─────────────────────────┘
+```
+
+### Day별 필터
+- Day 선택 시 해당 일자의 장소만 표시
+- "전체보기" 선택 시 모든 Day의 장소 표시 (색상으로 Day 구분)
+  - Day 1: `#E67E22` (오렌지)
+  - Day 2: `#3498DB` (블루)
+  - Day 3: `#2ECC71` (그린)
+  - Day 4+: `#9B59B6` (퍼플)
 
 ---
 
@@ -268,18 +362,26 @@ Agent 추론:
 ---
 
 ### 5. 여행 계획 결과 화면 (Travel Plan Result Screen)
-- **목적**: **Travel Planner Agent**가 생성한 일정 표시
+- **목적**: **Travel Planner Agent**가 생성한 일정 + 지도 표시
+- **레이아웃**: 상하 분할 (드래그로 비율 조절 가능)
 - **구성 요소**:
-  - **상단**: 목적지명 + 기간 요약 + 날씨 아이콘
-  - **탭 네비게이션**: Day 1 | Day 2 | Day 3 ...
-  - **타임라인 뷰**: 시간순 일정 카드
-    - 시간 (왼쪽 라인)
-    - 장소명 + 카테고리 태그
-    - 간단한 설명 (1-2줄)
-    - 예상 비용 (작은 텍스트)
+  - **상단 (지도 뷰)**:
+    - 일정 장소들을 마커로 표시
+    - 방문 순서대로 직선 연결 (점선)
+    - Day별 필터 드롭다운
+    - 확대/축소 버튼
+  - **하단 (타임라인 뷰)**:
+    - 탭 네비게이션: Day 1 | Day 2 | Day 3 ...
+    - 시간순 일정 카드
+      - 시간 (왼쪽 라인)
+      - 장소명 + 카테고리 태그
+      - 간단한 설명 (1-2줄)
+      - 예상 비용 (작은 텍스트)
   - **하단 플로팅 버튼**:
-    - [저장하기] / [수정 요청] (작은 텍스트 버튼)
-- **스타일**: 타임라인은 세로선 + 도트로 연결, 카드는 흰색 배경
+    - [저장하기] / [수정 요청]
+- **인터랙션**:
+  - 타임라인 카드 탭 → 지도에서 해당 마커 강조 + 중앙 이동
+  - 지도 마커 탭 → 타임라인에서 해당 일정으로 스크롤
 - **수정 요청**: "수정 요청" 클릭 시 Agent 재호출 (추가 요구사항 입력)
 
 ---
@@ -291,9 +393,9 @@ Agent 추론:
   - **채팅 영역**:
     - AI 메시지: 왼쪽 정렬, 밝은 회색 배경
     - 사용자 메시지: 오른쪽 정렬, Accent 컬러 배경
-    - Tool 실행 표시: "날씨 정보를 확인하고 있어요..." (로딩 인디케이터)
+    - Tool 실행 표시: "장소를 검색하고 있어요..." (로딩 인디케이터)
   - **빠른 질문 칩** (채팅 하단, 가로 스크롤):
-    - "추천 맛집" / "날씨 정보" / "교통편" / "숙소 추천" / "이 말 번역해줘"
+    - "추천 맛집" / "숙소 추천" / "이 말 번역해줘" / "환율 알려줘"
   - **입력창**: 둥근 텍스트필드 + 전송 버튼
 - **동작**: 실시간 스트리밍 응답 (타이핑 애니메이션)
 - **Agent 연동**: 모든 메시지는 Travel Consultant Agent가 처리
@@ -310,7 +412,7 @@ Agent 추론:
     - 목적지명 + 기간
     - 상태 뱃지 (색상으로 구분)
   - **빈 상태**: 일러스트 + "새 여행을 계획해보세요" 버튼
-- **인터랙션**: 카드 탭 → 상세 화면, 왼쪽 스와이프 → 삭제
+- **인터랙션**: 카드 탭 → 상세 화면 (지도 + 타임라인), 왼쪽 스와이프 → 삭제
 
 ---
 
@@ -388,6 +490,7 @@ Agent 추론:
 | 스플래시/온보딩 | 앱 초기 진입 화면 | UI | P0 |
 | 여행 계획 입력 | 목적지, 기간, 예산 등 입력 | UI | P0 |
 | AI 일정 생성 | GPT-5.2 기반 여행 일정 자동 생성 | **Agent** | P0 |
+| 지도 경로 표시 | 장소 마커 + 직선 연결로 동선 시각화 | flutter_map | P0 |
 | 일정 저장/조회 | 생성된 일정 로컬 저장 | CRUD | P0 |
 | AI 채팅 상담 | 실시간 여행 관련 질의응답 | **Agent** | P1 |
 
@@ -397,7 +500,6 @@ Agent 추론:
 | 사진 꾸미기 | Gemini Nano Banana Pro로 사진 변환 | API 호출 | P2 |
 | 나만의 영상 | Veo 3.1로 AI 영상 생성 | API 호출 | P2 |
 | 갤러리 연동 | 여행 기간 기반 미디어 자동 필터링 | Native API | P2 |
-| 지도 연동 | 장소 위치 지도에 표시 | Google Maps | P2 |
 
 ### Phase 3
 | 기능 | 설명 | 구현 방식 | 우선순위 |
@@ -424,13 +526,21 @@ travver/
 │   │   ├── home/
 │   │   ├── plan_input/
 │   │   ├── plan_result/
+│   │   │   ├── plan_result_screen.dart
+│   │   │   ├── map_view.dart         # 지도 뷰 컴포넌트
+│   │   │   └── timeline_view.dart    # 타임라인 뷰 컴포넌트
 │   │   ├── ai_consultant/
 │   │   ├── my_trips/
 │   │   └── memories/
 │   │       ├── memories_screen.dart
 │   │       ├── photo_decorator_screen.dart
 │   │       └── video_creator_screen.dart
-│   ├── widgets/                      # 재사용 위젯
+│   ├── widgets/
+│   │   ├── map/
+│   │   │   ├── trip_map_widget.dart  # 여행 지도 위젯
+│   │   │   ├── place_marker.dart     # 커스텀 마커
+│   │   │   └── route_polyline.dart   # 경로 폴리라인
+│   │   └── common/
 │   ├── models/                       # 데이터 모델
 │   ├── services/
 │   │   ├── api_service.dart          # Backend API 통신
@@ -447,8 +557,6 @@ travver/
 │   │   └── travel_consultant_agent.py # AI 컨설턴트 Agent
 │   ├── tools/                        # Agent Tools
 │   │   ├── places_tool.py            # Google Places 연동
-│   │   ├── maps_tool.py              # Google Maps 연동
-│   │   ├── weather_tool.py           # 날씨 API 연동
 │   │   ├── exchange_tool.py          # 환율 API 연동
 │   │   └── translate_tool.py         # 번역 API 연동
 │   ├── services/
@@ -459,6 +567,7 @@ travver/
 ├── assets/
 │   ├── images/
 │   ├── icons/
+│   │   └── map_pin.svg               # 커스텀 지도 마커 아이콘
 │   └── fonts/                        # Pretendard 폰트
 └── PLAN.md
 ```
@@ -470,6 +579,7 @@ travver/
 - [ ] 화면별 상세 와이어프레임 작성 (Figma)
 - [ ] Flutter 프로젝트 초기 설정
 - [ ] 디자인 시스템 구현 (theme.dart)
+- [ ] flutter_map 지도 컴포넌트 구현
 - [ ] Backend FastAPI 프로젝트 초기 설정
 - [ ] Travel Planner Agent 구현 (GPT-5.2 + Tools)
 - [ ] Travel Consultant Agent 구현 (GPT-5.2 + Tools)
@@ -489,3 +599,5 @@ travver/
 | 2026-01-15 | Gemini API (Nano/Pro, Veo 3.1) 기술 스택 추가 |
 | 2026-01-15 | AI 모델 변경: GPT-5.2, Gemini Nano Banana Pro |
 | 2026-01-15 | AI Agent 아키텍처 추가 (Travel Planner Agent, Travel Consultant Agent) |
+| 2026-01-15 | 날씨 API, Google Maps API 제거 |
+| 2026-01-15 | 지도 UI 컴포넌트 추가 (flutter_map + Mapbox, 마커 + 직선 경로) |
