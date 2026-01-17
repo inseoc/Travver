@@ -225,7 +225,7 @@ class _PlanResultScreenState extends State<PlanResultScreen> {
           heroTag: 'save',
           onPressed: _saveTrip,
           icon: const Icon(Icons.check),
-          label: const Text('저장하기'),
+          label: const Text('저장'),
         ),
       ],
     );

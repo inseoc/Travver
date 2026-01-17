@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../app/theme.dart';
+import '../../models/trip.dart';
+import '../../providers/trip_provider.dart';
 
 /// 나만의 영상 화면
 /// - AI로 시네마틱 영상 생성
 /// - Google Gemini Veo 3.1 사용
+/// - 선택한 여행의 갤러리 미디어만 업로드 가능
 class VideoCreatorScreen extends StatefulWidget {
   final String? tripId;
 
@@ -19,6 +23,7 @@ class _VideoCreatorScreenState extends State<VideoCreatorScreen> {
   String? _selectedMusic;
   int _duration = 30;
   bool _isProcessing = false;
+  Trip? _trip;
 
   final List<VideoStyle> _styles = [
     VideoStyle('cinematic', '시네마틱 여행', Icons.movie_creation),
@@ -35,7 +40,44 @@ class _VideoCreatorScreenState extends State<VideoCreatorScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _loadTrip();
+  }
+
+  void _loadTrip() {
+    if (widget.tripId != null) {
+      final tripProvider = context.read<TripProvider>();
+      _trip = tripProvider.getTripById(widget.tripId!);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    // 여행이 선택되지 않은 경우
+    if (widget.tripId == null || _trip == null) {
+      return Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          backgroundColor: AppColors.surface,
+          title: Text('나만의 영상', style: AppTypography.subhead1),
+        ),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.videocam_off_outlined, size: 64, color: Colors.grey.shade400),
+              const SizedBox(height: AppDimens.spacing16),
+              Text(
+                '여행을 먼저 선택해주세요',
+                style: AppTypography.body1.copyWith(color: AppColors.textSecondary),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -80,12 +122,37 @@ class _VideoCreatorScreenState extends State<VideoCreatorScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // 선택된 여행 정보 표시
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(AppDimens.spacing12),
+          margin: const EdgeInsets.only(bottom: AppDimens.spacing16),
+          decoration: BoxDecoration(
+            color: AppColors.info.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(AppDimens.radiusMedium),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.flight, size: 20, color: AppColors.info),
+              const SizedBox(width: AppDimens.spacing8),
+              Expanded(
+                child: Text(
+                  '${_trip!.destination} (${_trip!.period.displayString})',
+                  style: AppTypography.body2.copyWith(
+                    color: AppColors.info,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text('미디어 선택', style: AppTypography.subhead2),
             Text(
-              '사진 ${_selectedMedia.length}/20',
+              '${_selectedMedia.length}/20',
               style: AppTypography.body2.copyWith(
                 color: AppColors.textSecondary,
               ),
@@ -94,7 +161,7 @@ class _VideoCreatorScreenState extends State<VideoCreatorScreen> {
         ),
         const SizedBox(height: AppDimens.spacing8),
         Text(
-          '여행 기간에 촬영된 미디어만 표시됩니다',
+          '${_trip!.destination} 여행 기간(${_trip!.period.displayString})에 촬영된 갤러리 미디어만 선택할 수 있습니다',
           style: AppTypography.caption,
         ),
         const SizedBox(height: AppDimens.spacing12),
