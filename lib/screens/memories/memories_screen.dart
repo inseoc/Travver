@@ -44,10 +44,17 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
               title: '사진 꾸미기',
               description: 'AI로 여행 사진을 예술적으로 꾸며보세요',
               color: AppColors.accent,
-              onTap: () => context.push(
-                AppRoutes.photoDecorator,
-                extra: _selectedTrip?.id,
-              ),
+              isEnabled: _selectedTrip != null,
+              onTap: () {
+                if (_selectedTrip == null) {
+                  _showTripRequiredMessage();
+                  return;
+                }
+                context.push(
+                  AppRoutes.photoDecorator,
+                  extra: _selectedTrip!.id,
+                );
+              },
             ),
             const SizedBox(height: AppDimens.spacing16),
             _buildFeatureCard(
@@ -55,10 +62,17 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
               title: '나만의 영상',
               description: 'AI로 시네마틱 여행 영상을 만들어보세요',
               color: AppColors.info,
-              onTap: () => context.push(
-                AppRoutes.videoCreator,
-                extra: _selectedTrip?.id,
-              ),
+              isEnabled: _selectedTrip != null,
+              onTap: () {
+                if (_selectedTrip == null) {
+                  _showTripRequiredMessage();
+                  return;
+                }
+                context.push(
+                  AppRoutes.videoCreator,
+                  extra: _selectedTrip!.id,
+                );
+              },
             ),
             const SizedBox(height: AppDimens.spacing32),
 
@@ -133,16 +147,18 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
     required String description,
     required Color color,
     required VoidCallback onTap,
+    bool isEnabled = true,
   }) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
         width: double.infinity,
         padding: const EdgeInsets.all(AppDimens.spacing20),
         decoration: BoxDecoration(
-          color: AppColors.surface,
+          color: isEnabled ? AppColors.surface : Colors.grey.shade100,
           borderRadius: BorderRadius.circular(AppDimens.cardRadius),
-          boxShadow: AppShadows.card,
+          boxShadow: isEnabled ? AppShadows.card : null,
         ),
         child: Row(
           children: [
@@ -150,33 +166,51 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
               width: 64,
               height: 64,
               decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
+                color: isEnabled ? color.withOpacity(0.1) : Colors.grey.shade200,
                 borderRadius: BorderRadius.circular(AppDimens.radiusMedium),
               ),
-              child: Icon(icon, size: 32, color: color),
+              child: Icon(
+                icon,
+                size: 32,
+                color: isEnabled ? color : Colors.grey.shade400,
+              ),
             ),
             const SizedBox(width: AppDimens.spacing16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: AppTypography.subhead1),
+                  Text(
+                    title,
+                    style: AppTypography.subhead1.copyWith(
+                      color: isEnabled ? AppColors.textPrimary : Colors.grey.shade500,
+                    ),
+                  ),
                   const SizedBox(height: AppDimens.spacing4),
                   Text(
-                    description,
+                    isEnabled ? description : '여행을 먼저 선택해주세요',
                     style: AppTypography.body2.copyWith(
-                      color: AppColors.textSecondary,
+                      color: isEnabled ? AppColors.textSecondary : Colors.grey.shade400,
                     ),
                   ),
                 ],
               ),
             ),
-            const Icon(
+            Icon(
               Icons.chevron_right,
-              color: AppColors.textSecondary,
+              color: isEnabled ? AppColors.textSecondary : Colors.grey.shade400,
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showTripRequiredMessage() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('추억을 만들 여행을 먼저 선택해주세요'),
+        backgroundColor: AppColors.warning,
       ),
     );
   }

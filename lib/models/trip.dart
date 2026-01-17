@@ -114,6 +114,8 @@ class Trip extends Equatable {
   final int travelers;
   final Budget budget;
   final List<TravelStyle> styles;
+  final String? customPreference; // 사용자 정의 여행 선호도
+  final String? accommodationLocation; // 숙소 위치
   final List<DailyPlan> dailyPlans;
   TripStatus status;
   final DateTime createdAt;
@@ -126,6 +128,8 @@ class Trip extends Equatable {
     required this.travelers,
     required this.budget,
     required this.styles,
+    this.customPreference,
+    this.accommodationLocation,
     this.dailyPlans = const [],
     this.status = TripStatus.upcoming,
     DateTime? createdAt,
@@ -154,6 +158,8 @@ class Trip extends Equatable {
               ?.map((s) => TravelStyle.fromString(s as String))
               .toList() ??
           [],
+      customPreference: json['custom_preference'] as String?,
+      accommodationLocation: json['accommodation_location'] as String?,
       dailyPlans: (json['daily_plans'] as List<dynamic>?)
               ?.map((d) => DailyPlan.fromJson(d as Map<String, dynamic>))
               .toList() ??
@@ -177,6 +183,8 @@ class Trip extends Equatable {
       'travelers': travelers,
       'total_budget': budget.toJson(),
       'styles': styles.map((s) => s.name).toList(),
+      'custom_preference': customPreference,
+      'accommodation_location': accommodationLocation,
       'daily_plans': dailyPlans.map((d) => d.toJson()).toList(),
       'status': status.name,
       'created_at': createdAt.toIso8601String(),
@@ -191,6 +199,8 @@ class Trip extends Equatable {
     int? travelers,
     Budget? budget,
     List<TravelStyle>? styles,
+    String? customPreference,
+    String? accommodationLocation,
     List<DailyPlan>? dailyPlans,
     TripStatus? status,
     DateTime? createdAt,
@@ -203,6 +213,8 @@ class Trip extends Equatable {
       travelers: travelers ?? this.travelers,
       budget: budget ?? this.budget,
       styles: styles ?? this.styles,
+      customPreference: customPreference ?? this.customPreference,
+      accommodationLocation: accommodationLocation ?? this.accommodationLocation,
       dailyPlans: dailyPlans ?? this.dailyPlans,
       status: status ?? this.status,
       createdAt: createdAt ?? this.createdAt,
@@ -218,6 +230,8 @@ class Trip extends Equatable {
         travelers,
         budget,
         styles,
+        customPreference,
+        accommodationLocation,
         dailyPlans,
         status,
         createdAt,

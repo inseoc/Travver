@@ -23,8 +23,8 @@ class _PlanInputScreenState extends State<PlanInputScreen> {
   int _currentStep = 0;
   bool _isLoading = false;
 
-  // Step 1: 목적지
-  final TextEditingController _destinationController = TextEditingController();
+  // Step 1: 목적지 (오사카 또는 제주도만)
+  String? _selectedDestination;
 
   // Step 2: 여행 기간
   DateTimeRange? _dateRange;
@@ -32,39 +32,41 @@ class _PlanInputScreenState extends State<PlanInputScreen> {
   // Step 3: 여행 인원
   int _travelers = 2;
 
-  // Step 4: 예산 범위
-  double _budget = 500000;
+  // Step 4: 숙소 위치
+  final TextEditingController _accommodationController = TextEditingController();
 
   // Step 5: 여행 스타일
   final Set<TravelStyle> _selectedStyles = {};
+  final TextEditingController _customPreferenceController = TextEditingController();
 
   final List<String> _stepTitles = [
     '어디로 떠나시나요?',
     '언제 여행하시나요?',
     '몇 명이 함께하나요?',
-    '예산은 어느 정도인가요?',
+    '숙소 위치는 어디인가요?',
     '어떤 여행을 원하시나요?',
   ];
 
   @override
   void dispose() {
     _pageController.dispose();
-    _destinationController.dispose();
+    _accommodationController.dispose();
+    _customPreferenceController.dispose();
     super.dispose();
   }
 
   bool _canProceed() {
     switch (_currentStep) {
       case 0:
-        return _destinationController.text.isNotEmpty;
+        return _selectedDestination != null;
       case 1:
         return _dateRange != null;
       case 2:
         return _travelers > 0;
       case 3:
-        return _budget > 0;
+        return true; // 숙소 위치는 건너뛰기 가능
       case 4:
-        return _selectedStyles.isNotEmpty;
+        return _selectedStyles.isNotEmpty || _customPreferenceController.text.isNotEmpty;
       default:
         return false;
     }
@@ -138,14 +140,20 @@ class _PlanInputScreenState extends State<PlanInputScreen> {
     final uuid = const Uuid();
     return Trip(
       id: uuid.v4(),
-      destination: _destinationController.text,
+      destination: _selectedDestination!,
       period: TripPeriod(
         start: _dateRange!.start,
         end: _dateRange!.end,
       ),
       travelers: _travelers,
-      budget: Budget(estimated: _budget.toInt()),
+      budget: const Budget(estimated: 0), // 예산 입력 제거됨
       styles: _selectedStyles.toList(),
+      customPreference: _customPreferenceController.text.isNotEmpty
+          ? _customPreferenceController.text
+          : null,
+      accommodationLocation: _accommodationController.text.isNotEmpty
+          ? _accommodationController.text
+          : null,
       dailyPlans: [], // AI가 채울 예정
       status: TripStatus.upcoming,
     );
@@ -180,7 +188,7 @@ class _PlanInputScreenState extends State<PlanInputScreen> {
                 _buildDestinationStep(),
                 _buildDateStep(),
                 _buildTravelersStep(),
-                _buildBudgetStep(),
+                _buildAccommodationStep(),
                 _buildStyleStep(),
               ],
             ),
@@ -230,7 +238,7 @@ class _PlanInputScreenState extends State<PlanInputScreen> {
     );
   }
 
-  // Step 1: 목적지 입력
+  // Step 1: 목적지 선택 (오사카 또는 제주도)
   Widget _buildDestinationStep() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(AppDimens.spacing20),
@@ -238,33 +246,96 @@ class _PlanInputScreenState extends State<PlanInputScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(_stepTitles[0], style: AppTypography.headline3),
-          const SizedBox(height: AppDimens.spacing24),
-          TextField(
-            controller: _destinationController,
-            decoration: const InputDecoration(
-              hintText: '도시 또는 국가 입력',
-              prefixIcon: Icon(Icons.search),
-            ),
-            style: AppTypography.body1,
-            textInputAction: TextInputAction.done,
-            onChanged: (_) => setState(() {}),
+          const SizedBox(height: AppDimens.spacing8),
+          Text(
+            '특별한 여행지를 선택하세요',
+            style: AppTypography.body2.copyWith(color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: AppDimens.spacing32),
+          // 오사카 카드
+          _buildDestinationCard(
+            destination: '오사카',
+            description: '맛집과 쇼핑의 천국, 활기찬 일본 여행',
+            icon: Icons.ramen_dining,
+            isSelected: _selectedDestination == '오사카',
           ),
           const SizedBox(height: AppDimens.spacing16),
-          // 인기 여행지 추천
-          Wrap(
-            spacing: AppDimens.spacing8,
-            runSpacing: AppDimens.spacing8,
-            children: ['도쿄', '오사카', '방콕', '파리', '제주도', '부산']
-                .map((city) => ActionChip(
-                      label: Text(city),
-                      onPressed: () {
-                        _destinationController.text = city;
-                        setState(() {});
-                      },
-                    ))
-                .toList(),
+          // 제주도 카드
+          _buildDestinationCard(
+            destination: '제주도',
+            description: '자연과 힐링의 섬, 아름다운 국내 여행',
+            icon: Icons.terrain,
+            isSelected: _selectedDestination == '제주도',
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildDestinationCard({
+    required String destination,
+    required String description,
+    required IconData icon,
+    required bool isSelected,
+  }) {
+    return GestureDetector(
+      onTap: () => setState(() => _selectedDestination = destination),
+      child: AnimatedContainer(
+        duration: AppTheme.animationDuration,
+        width: double.infinity,
+        padding: const EdgeInsets.all(AppDimens.spacing20),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.accent.withOpacity(0.1) : AppColors.surface,
+          borderRadius: BorderRadius.circular(AppDimens.cardRadius),
+          border: Border.all(
+            color: isSelected ? AppColors.accent : Colors.grey.shade300,
+            width: isSelected ? 2 : 1,
+          ),
+          boxShadow: isSelected ? AppShadows.card : null,
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? AppColors.accent.withOpacity(0.2)
+                    : Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(AppDimens.radiusMedium),
+              ),
+              child: Icon(
+                icon,
+                size: 32,
+                color: isSelected ? AppColors.accent : AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(width: AppDimens.spacing16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    destination,
+                    style: AppTypography.subhead1.copyWith(
+                      color: isSelected ? AppColors.accent : AppColors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: AppDimens.spacing4),
+                  Text(
+                    description,
+                    style: AppTypography.body2.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (isSelected)
+              const Icon(Icons.check_circle, color: AppColors.accent),
+          ],
+        ),
       ),
     );
   }
@@ -411,59 +482,73 @@ class _PlanInputScreenState extends State<PlanInputScreen> {
     );
   }
 
-  // Step 4: 예산 범위
-  Widget _buildBudgetStep() {
+  // Step 4: 숙소 위치
+  Widget _buildAccommodationStep() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(AppDimens.spacing20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(_stepTitles[3], style: AppTypography.headline3),
-          const SizedBox(height: AppDimens.spacing48),
-          Center(
-            child: Text(
-              '${_formatBudget(_budget.toInt())}원',
-              style: AppTypography.headline1.copyWith(
-                color: AppColors.accent,
-              ),
-            ),
-          ),
           const SizedBox(height: AppDimens.spacing8),
-          Center(
-            child: Text(
-              '1인당 예상 비용',
-              style: AppTypography.caption,
+          Text(
+            '숙소 근처로 일정을 최적화해드려요',
+            style: AppTypography.body2.copyWith(color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: AppDimens.spacing24),
+          TextField(
+            controller: _accommodationController,
+            decoration: InputDecoration(
+              hintText: '예: 난바역, 제주시청 근처',
+              prefixIcon: const Icon(Icons.hotel_outlined),
+              suffixIcon: _accommodationController.text.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear),
+                      onPressed: () {
+                        _accommodationController.clear();
+                        setState(() {});
+                      },
+                    )
+                  : null,
             ),
+            style: AppTypography.body1,
+            textInputAction: TextInputAction.done,
+            onChanged: (_) => setState(() {}),
           ),
-          const SizedBox(height: AppDimens.spacing32),
-          Slider(
-            value: _budget,
-            min: 100000,
-            max: 5000000,
-            divisions: 49,
-            activeColor: AppColors.accent,
-            inactiveColor: Colors.grey.shade300,
-            onChanged: (value) => setState(() => _budget = value),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: AppDimens.spacing8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text('10만원', style: AppTypography.caption),
-                Text('500만원', style: AppTypography.caption),
-              ],
-            ),
-          ),
+          const SizedBox(height: AppDimens.spacing16),
+          // 추천 숙소 위치
+          if (_selectedDestination == '오사카')
+            _buildAccommodationSuggestions(['난바역', '우메다역', '신사이바시', '도톤보리'])
+          else if (_selectedDestination == '제주도')
+            _buildAccommodationSuggestions(['제주시청', '서귀포시', '애월읍', '중문관광단지']),
         ],
       ),
     );
   }
 
-  String _formatBudget(int budget) {
-    return budget.toString().replaceAllMapped(
-      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-      (m) => '${m[1]},',
+  Widget _buildAccommodationSuggestions(List<String> suggestions) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '추천 위치',
+          style: AppTypography.caption.copyWith(color: AppColors.textSecondary),
+        ),
+        const SizedBox(height: AppDimens.spacing8),
+        Wrap(
+          spacing: AppDimens.spacing8,
+          runSpacing: AppDimens.spacing8,
+          children: suggestions
+              .map((location) => ActionChip(
+                    label: Text(location),
+                    onPressed: () {
+                      _accommodationController.text = location;
+                      setState(() {});
+                    },
+                  ))
+              .toList(),
+        ),
+      ],
     );
   }
 
@@ -477,10 +562,16 @@ class _PlanInputScreenState extends State<PlanInputScreen> {
           Text(_stepTitles[4], style: AppTypography.headline3),
           const SizedBox(height: AppDimens.spacing8),
           Text(
-            '여러 개 선택 가능해요',
+            '키워드 선택 또는 직접 입력하세요',
             style: AppTypography.body2.copyWith(color: AppColors.textSecondary),
           ),
           const SizedBox(height: AppDimens.spacing24),
+          // 키워드 선택
+          Text(
+            '키워드 선택',
+            style: AppTypography.subhead2,
+          ),
+          const SizedBox(height: AppDimens.spacing12),
           Wrap(
             spacing: AppDimens.spacing12,
             runSpacing: AppDimens.spacing12,
@@ -511,12 +602,39 @@ class _PlanInputScreenState extends State<PlanInputScreen> {
               );
             }).toList(),
           ),
+          const SizedBox(height: AppDimens.spacing24),
+          // 직접 입력
+          Text(
+            '또는 직접 입력',
+            style: AppTypography.subhead2,
+          ),
+          const SizedBox(height: AppDimens.spacing12),
+          TextField(
+            controller: _customPreferenceController,
+            decoration: const InputDecoration(
+              hintText: '원하는 여행 스타일을 자유롭게 입력하세요',
+              prefixIcon: Icon(Icons.edit_note),
+            ),
+            style: AppTypography.body1,
+            maxLines: 3,
+            minLines: 1,
+            textInputAction: TextInputAction.done,
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: AppDimens.spacing8),
+          Text(
+            '예: 현지인 맛집 위주, 사진 찍기 좋은 카페, 야경 명소 등',
+            style: AppTypography.caption.copyWith(color: AppColors.textSecondary),
+          ),
         ],
       ),
     );
   }
 
   Widget _buildBottomButton() {
+    // 숙소 위치 단계(3)에서 건너뛰기 버튼 표시
+    final showSkipButton = _currentStep == 3;
+
     return Container(
       padding: const EdgeInsets.all(AppDimens.spacing20),
       decoration: BoxDecoration(
@@ -531,23 +649,48 @@ class _PlanInputScreenState extends State<PlanInputScreen> {
       ),
       child: SafeArea(
         top: false,
-        child: SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: _canProceed() && !_isLoading ? _nextStep : null,
-            child: _isLoading
-                ? const SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(
-                      color: Colors.white,
-                      strokeWidth: 2,
-                    ),
-                  )
-                : Text(_currentStep == 4 ? 'AI 일정 생성하기' : '다음'),
-          ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (showSkipButton) ...[
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: !_isLoading ? _skipStep : null,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.textSecondary,
+                    side: BorderSide(color: Colors.grey.shade300),
+                  ),
+                  child: const Text('건너뛰기'),
+                ),
+              ),
+              const SizedBox(height: AppDimens.spacing8),
+            ],
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _canProceed() && !_isLoading ? _nextStep : null,
+                child: _isLoading
+                    ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : Text(_currentStep == 4 ? 'AI 일정 생성하기' : '다음'),
+              ),
+            ),
+          ],
         ),
       ),
     );
+  }
+
+  void _skipStep() {
+    // 숙소 위치 건너뛰기 - 컨트롤러 비우고 다음 단계로
+    _accommodationController.clear();
+    _nextStep();
   }
 }
