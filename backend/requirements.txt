@@ -1,28 +1,24 @@
 # FastAPI & Server
-fastapi==0.109.0
-uvicorn[standard]==0.27.0
-python-multipart==0.0.6
-httpx==0.26.0
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+python-multipart>=0.0.9
 
-# OpenAI
-openai==1.12.0
-
-# Google AI
-google-generativeai==0.4.0
+# AI Services
+openai>=1.12.0
+google-generativeai>=0.4.0
+google-genai>=1.0.0
 
 # Data Validation
 pydantic>=2.9.0
 pydantic-settings>=2.5.0
 
-# Database (optional)
-sqlalchemy==2.0.25
-aiosqlite==0.19.0
+# HTTP & Utils
+httpx>=0.28.0
+tenacity>=8.2.3
+python-dotenv>=1.0.1
 
-# Utils
-python-dotenv==1.0.1
-tenacity==8.2.3
-aiohttp==3.9.3
-python-jose[cryptography]==3.3.0
+# Image Processing
+Pillow>=10.0.0
 
-# Logging & Monitoring
-loguru==0.7.2
+# Logging
+loguru>=0.7.2
