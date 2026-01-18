@@ -105,6 +105,7 @@ class VideoCreateResponse(BaseModel):
     thumbnail_url: str = Field(..., description="썸네일 URL")
     duration: int = Field(..., description="영상 길이 (초)")
     style: str = Field(..., description="적용된 스타일")
+    aspect_ratio: str = Field(default="16:9", description="영상 가로세로 비율 (16:9 또는 9:16)")
 
     class Config:
         json_schema_extra = {
@@ -114,5 +115,6 @@ class VideoCreateResponse(BaseModel):
                 "thumbnail_url": "https://storage.example.com/thumbnails/123.jpg",
                 "duration": 30,
                 "style": "cinematic",
+                "aspect_ratio": "16:9",
             }
         }
