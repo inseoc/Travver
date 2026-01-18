@@ -1,6 +1,7 @@
 """Google Gemini API service for image and video generation."""
 
 import base64
+import io
 import time
 from typing import Any, Optional, Literal
 
@@ -74,6 +75,13 @@ class GeminiService:
         self._ensure_initialized()
         return self._initialized
 
+    def is_image_gen_available(self) -> bool:
+        """Check if image generation service is available."""
+        if not self._configured:
+            return False
+        self._ensure_veo_initialized()
+        return self._veo_initialized
+
     async def decorate_photo(
         self,
         image_data: bytes,
@@ -81,7 +89,7 @@ class GeminiService:
         image_format: str = "jpeg",
     ) -> bytes:
         """
-        Apply artistic style to a photo using Gemini.
+        Apply artistic style to a photo using Gemini 2.5 Flash Image.
 
         Args:
             image_data: Raw image bytes
@@ -94,9 +102,12 @@ class GeminiService:
         Raises:
             GeminiException: On API errors
         """
-        if not self.is_available():
+        # Genai 클라이언트 초기화
+        self._ensure_veo_initialized()
+
+        if not self._veo_initialized:
             # Fallback: 원본 이미지 반환
-            logger.warning("Gemini not available, returning original image")
+            logger.warning("Gemini image generation not available, returning original image")
             return image_data
 
         style_prompts = {
@@ -128,27 +139,31 @@ class GeminiService:
         try:
             logger.info(f"Decorating photo with style: {style}")
 
-            # Prepare image for Gemini
-            image_part = {
-                "mime_type": f"image/{image_format}",
-                "data": base64.b64encode(image_data).decode("utf-8"),
-            }
+            # PIL로 이미지 변환
+            from PIL import Image
+            input_image = Image.open(io.BytesIO(image_data))
 
-            response = await self._model.generate_content_async(
-                contents=[prompt, image_part],
-                generation_config={
-                    "temperature": 0.4,
-                    "max_output_tokens": 8192,
-                },
+            # Gemini 2.5 Flash Image 모델로 이미지 생성
+            response = self._veo_client.models.generate_content(
+                model="gemini-2.5-flash-preview-image",
+                contents=[prompt, input_image],
             )
 
-            # Note: 실제 Gemini Vision API는 텍스트 응답만 반환
-            # 이미지 생성을 위해서는 별도의 이미지 생성 모델이 필요
-            # 여기서는 구조만 정의하고, 실제로는 적절한 이미지 생성 API 사용
+            # 응답에서 이미지 추출
+            for part in response.parts:
+                if part.inline_data is not None:
+                    result_image = part.as_image()
 
-            logger.info(f"Photo decoration completed for style: {style}")
+                    # PIL Image를 bytes로 변환
+                    output_buffer = io.BytesIO()
+                    output_format = "JPEG" if image_format.lower() in ["jpeg", "jpg"] else image_format.upper()
+                    result_image.save(output_buffer, format=output_format)
 
-            # Placeholder: 실제로는 이미지 생성 API 응답 반환
+                    logger.info(f"Photo decoration completed for style: {style}")
+                    return output_buffer.getvalue()
+
+            # 이미지가 없으면 원본 반환
+            logger.warning("No image in response, returning original image")
             return image_data
 
         except Exception as e:
