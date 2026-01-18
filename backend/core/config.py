@@ -26,8 +26,9 @@ class Settings(BaseSettings):
     # Google AI (Gemini)
     google_api_key: str = ""
     gemini_api_key: str = ""  # Alias for google_api_key
-    gemini_model: str = "gemini-pro-vision"  # Gemini Nano Banana Pro 예정
-    veo_model: str = "veo-3.1"  # Veo 3.1 예정
+    gemini_model: str = "gemini-1.5-flash"  # 텍스트/분석용 모델
+    gemini_image_model: str = "gemini-2.5-flash-preview-image"  # Gemini 2.5 Flash Image
+    gemini_video_model: str = "veo-3.1-generate-preview"  # Veo 3.1
 
     # Google Places API
     google_places_api_key: str = ""
