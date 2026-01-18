@@ -1,9 +1,23 @@
 """Application configuration using Pydantic Settings."""
 
+import json
 from functools import lru_cache
-from typing import List, Union
-from pydantic import field_validator
+from typing import List
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def parse_list_str(value: str, default: List[str] = None) -> List[str]:
+    """Parse comma-separated or JSON list string."""
+    if not value:
+        return default or []
+    value = value.strip()
+    if value.startswith("["):
+        try:
+            return json.loads(value)
+        except json.JSONDecodeError:
+            pass
+    return [item.strip() for item in value.split(",") if item.strip()]
 
 
 class Settings(BaseSettings):
@@ -16,35 +30,20 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    @field_validator("cors_origins", mode="before")
-    @classmethod
-    def parse_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:
-        """Parse CORS origins from comma-separated string or list."""
-        if isinstance(v, list):
-            return v
-        if isinstance(v, str):
-            if v.strip().startswith("["):
-                # JSON format
-                import json
-                return json.loads(v)
-            # Comma-separated format
-            return [origin.strip() for origin in v.split(",") if origin.strip()]
-        return v
-
     # App
     app_name: str = "Travver API"
     environment: str = "development"
 
     # OpenAI
     openai_api_key: str = ""
-    openai_model: str = "gpt-4-turbo-preview"  # 실제로는 gpt-5.2 사용 예정
+    openai_model: str = "gpt-4-turbo-preview"
 
     # Google AI (Gemini)
     google_api_key: str = ""
-    gemini_api_key: str = ""  # Alias for google_api_key
-    gemini_model: str = "gemini-1.5-flash"  # 텍스트/분석용 모델
-    gemini_image_model: str = "gemini-2.5-flash-preview-image"  # Gemini 2.5 Flash Image
-    gemini_video_model: str = "veo-3.1-generate-preview"  # Veo 3.1
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-1.5-flash"
+    gemini_image_model: str = "gemini-2.5-flash-preview-image"
+    gemini_video_model: str = "veo-3.1-generate-preview"
 
     # Google Places API
     google_places_api_key: str = ""
@@ -58,8 +57,19 @@ class Settings(BaseSettings):
     api_port: int = 8000
     debug: bool = False
 
-    # CORS
-    cors_origins: List[str] = ["http://localhost:3000", "http://localhost:8080", "*"]
+    # CORS - stored as string, accessed via property
+    cors_origins_str: str = Field(
+        default="http://localhost:3000,http://localhost:8080,*",
+        validation_alias="CORS_ORIGINS"
+    )
+
+    @property
+    def cors_origins(self) -> List[str]:
+        """Get CORS origins as list."""
+        return parse_list_str(
+            self.cors_origins_str,
+            ["http://localhost:3000", "http://localhost:8080", "*"]
+        )
 
     @property
     def effective_gemini_api_key(self) -> str:
