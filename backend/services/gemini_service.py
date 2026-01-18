@@ -1,7 +1,8 @@
 """Google Gemini API service for image and video generation."""
 
 import base64
-from typing import Any, Optional
+import time
+from typing import Any, Optional, Literal
 
 from core.config import settings
 from core.logger import logger
@@ -15,7 +16,10 @@ class GeminiService:
         """Initialize Gemini client."""
         self._genai = None
         self._model = None
+        self._veo_client = None
+        self._veo_types = None
         self._initialized = False
+        self._veo_initialized = False
         self._configured = settings.is_google_configured()
 
         if not self._configured:
@@ -42,6 +46,26 @@ class GeminiService:
         except Exception as e:
             logger.error(f"Failed to initialize Gemini: {e}")
             self._configured = False
+
+    def _ensure_veo_initialized(self):
+        """Lazy initialization of Veo client for video generation."""
+        if self._veo_initialized:
+            return
+
+        if not self._configured:
+            return
+
+        try:
+            from google import genai
+            from google.genai import types
+            self._veo_client = genai.Client(api_key=settings.google_api_key)
+            self._veo_types = types
+            self._veo_initialized = True
+            logger.info("Veo service initialized successfully")
+        except ImportError:
+            logger.warning("google-genai not installed for Veo")
+        except Exception as e:
+            logger.error(f"Failed to initialize Veo: {e}")
 
     def is_available(self) -> bool:
         """Check if service is available."""
@@ -133,21 +157,31 @@ class GeminiService:
             logger.error(f"Gemini API error: {e}")
             raise GeminiException(str(e))
 
+    def is_veo_available(self) -> bool:
+        """Check if Veo video generation service is available."""
+        if not self._configured:
+            return False
+        self._ensure_veo_initialized()
+        return self._veo_initialized
+
     async def create_video(
         self,
         media_files: list[bytes],
         style: str,
         music: str,
         duration: int,
+        aspect_ratio: Literal["16:9", "9:16"] = "16:9",
     ) -> bytes:
         """
-        Create video from media files using Gemini Veo.
+        Create video from media files using Gemini Veo 3.1.
 
         Args:
             media_files: List of media file bytes (images/videos)
             style: Video style (cinematic, vlog, highlight, album)
             music: Background music style
             duration: Target duration in seconds
+            aspect_ratio: Video aspect ratio - "16:9" for landscape (default),
+                         "9:16" for portrait/vertical
 
         Returns:
             Generated video bytes
@@ -155,9 +189,12 @@ class GeminiService:
         Raises:
             GeminiException: On API errors
         """
-        if not self.is_available():
+        # Veo 클라이언트 초기화 확인
+        self._ensure_veo_initialized()
+
+        if not self._veo_initialized:
             # Fallback: placeholder 반환
-            logger.warning("Gemini not available, returning placeholder")
+            logger.warning("Veo not available, returning placeholder")
             return b"video_placeholder"
 
         style_configs = {
@@ -203,10 +240,7 @@ class GeminiService:
         music_prompt = music_configs.get(music, "appropriate background music")
 
         try:
-            logger.info(f"Creating video: style={style}, music={music}, duration={duration}s")
-
-            # Note: Gemini Veo 3.1 API 구조
-            # 실제 API가 출시되면 적절히 수정 필요
+            logger.info(f"Creating video: style={style}, music={music}, duration={duration}s, aspect_ratio={aspect_ratio}")
 
             full_prompt = (
                 f"{config['prompt']} "
@@ -217,18 +251,40 @@ class GeminiService:
 
             logger.info(f"Video creation prompt: {full_prompt[:100]}...")
 
-            # Placeholder: 실제로는 Veo API 호출
-            # response = await veo_client.generate_video(
-            #     media=media_files,
-            #     prompt=full_prompt,
-            #     duration=duration,
-            # )
+            # Veo 3.1 API 호출
+            operation = self._veo_client.models.generate_videos(
+                model="veo-3.1-generate-preview",
+                prompt=full_prompt,
+                config=self._veo_types.GenerateVideosConfig(
+                    aspect_ratio=aspect_ratio,
+                ),
+            )
 
-            logger.info(f"Video creation completed: {duration}s")
+            # 비디오 생성 완료까지 폴링
+            poll_interval = 10  # 초
+            max_wait_time = 300  # 최대 5분 대기
+            elapsed_time = 0
 
-            # Placeholder 반환
-            return b"video_placeholder"
+            while not operation.done:
+                if elapsed_time >= max_wait_time:
+                    raise GeminiException("Video generation timed out")
+                logger.info(f"Waiting for video generation... ({elapsed_time}s elapsed)")
+                time.sleep(poll_interval)
+                elapsed_time += poll_interval
+                operation = self._veo_client.operations.get(operation)
 
+            # 생성된 비디오 다운로드
+            generated_video = operation.response.generated_videos[0]
+            self._veo_client.files.download(file=generated_video.video)
+
+            # 비디오 바이트 데이터 반환
+            video_bytes = generated_video.video.read()
+
+            logger.info(f"Video creation completed: {duration}s, aspect_ratio={aspect_ratio}")
+            return video_bytes
+
+        except GeminiException:
+            raise
         except Exception as e:
             if "quota" in str(e).lower() or "rate" in str(e).lower():
                 raise RateLimitException("Veo rate limit exceeded")

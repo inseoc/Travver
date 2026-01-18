@@ -122,6 +122,7 @@ async def create_video(
     style: str = Form(..., description="영상 스타일"),
     music: str = Form("calm", description="배경음악"),
     duration: int = Form(30, description="영상 길이 (초)"),
+    aspect_ratio: str = Form("16:9", description="가로세로 비율 (16:9 또는 9:16)"),
     trip_id: str = Form(None, description="여행 ID"),
 ) -> VideoCreateResponse:
     """
@@ -131,6 +132,7 @@ async def create_video(
     - **style**: 영상 스타일 (cinematic, vlog, highlight, album)
     - **music**: 배경음악 (calm, upbeat, emotional, none)
     - **duration**: 영상 길이 (15, 30, 60초)
+    - **aspect_ratio**: 가로세로 비율 (16:9 가로, 9:16 세로)
     - **trip_id**: 여행 ID (선택)
     """
     # 파일 개수 제한
@@ -169,7 +171,15 @@ async def create_video(
             detail={"error": "INVALID_DURATION", "message": "영상 길이는 15, 30, 60초 중 선택해주세요."},
         )
 
-    logger.info(f"Video creation request: style={style}, music={music}, duration={duration}s, files={len(media)}")
+    # 가로세로 비율 검증
+    valid_aspect_ratios = ["16:9", "9:16"]
+    if aspect_ratio not in valid_aspect_ratios:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error": "INVALID_ASPECT_RATIO", "message": f"유효하지 않은 비율입니다. 가능한 값: {valid_aspect_ratios}"},
+        )
+
+    logger.info(f"Video creation request: style={style}, music={music}, duration={duration}s, aspect_ratio={aspect_ratio}, files={len(media)}")
 
     try:
         # 미디어 파일 읽기
@@ -195,6 +205,7 @@ async def create_video(
             style=style,
             music=music,
             duration=duration,
+            aspect_ratio=aspect_ratio,
         )
 
         # 실제로는 S3 등에 업로드하고 URL 반환
@@ -207,6 +218,7 @@ async def create_video(
             thumbnail_url=f"https://storage.travver.app/thumbnails/{video_id}.jpg",
             duration=duration,
             style=style,
+            aspect_ratio=aspect_ratio,
         )
 
     except RateLimitException as e:
@@ -270,4 +282,8 @@ async def get_video_styles():
             {"id": "none", "name": "없음"},
         ],
         "duration_options": [15, 30, 60],
+        "aspect_ratio_options": [
+            {"id": "16:9", "name": "가로 (16:9)", "description": "가로 영상 (기본값)"},
+            {"id": "9:16", "name": "세로 (9:16)", "description": "세로 영상 (릴스/숏츠용)"},
+        ],
     }
