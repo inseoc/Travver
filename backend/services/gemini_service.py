@@ -145,7 +145,7 @@ class GeminiService:
 
             # Gemini 2.5 Flash Image 모델로 이미지 생성
             response = self._veo_client.models.generate_content(
-                model="gemini-2.5-flash-preview-image",
+                model=settings.gemini_image_model,
                 contents=[prompt, input_image],
             )
 
@@ -268,7 +268,7 @@ class GeminiService:
 
             # Veo 3.1 API 호출
             operation = self._veo_client.models.generate_videos(
-                model="veo-3.1-generate-preview",
+                model=settings.gemini_video_model,
                 prompt=full_prompt,
                 config=self._veo_types.GenerateVideosConfig(
                     aspect_ratio=aspect_ratio,
