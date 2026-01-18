@@ -1,7 +1,8 @@
 """Application configuration using Pydantic Settings."""
 
 from functools import lru_cache
-from typing import List
+from typing import List, Union
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -14,6 +15,21 @@ class Settings(BaseSettings):
         case_sensitive=False,
         extra="ignore",
     )
+
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:
+        """Parse CORS origins from comma-separated string or list."""
+        if isinstance(v, list):
+            return v
+        if isinstance(v, str):
+            if v.strip().startswith("["):
+                # JSON format
+                import json
+                return json.loads(v)
+            # Comma-separated format
+            return [origin.strip() for origin in v.split(",") if origin.strip()]
+        return v
 
     # App
     app_name: str = "Travver API"
