@@ -417,6 +417,78 @@ class TravelPlannerAgent:
             logger.error(f"JSON parse error: {e}")
             return []
 
+    def _get_real_places(self, destination: str) -> Dict[str, List[Dict]]:
+        """목적지별 실제 장소 데이터."""
+        places_db = {
+            "오사카": {
+                "themes": ["도톤보리 & 난바 탐방", "오사카성 & 역사 투어", "신세카이 & 로컬 맛집", "우메다 & 쇼핑"],
+                "breakfast": [
+                    {"name": "이치란 라멘 도톤보리점", "desc": "24시간 운영 돈코츠 라멘 본점", "lat": 34.6687, "lng": 135.5013},
+                    {"name": "마루카메 제면 난바점", "desc": "갓 뽑은 사누키 우동 전문점", "lat": 34.6654, "lng": 135.5014},
+                    {"name": "에그슬럿 오사카", "desc": "LA 감성 에그 샌드위치 브런치", "lat": 34.7025, "lng": 135.4959},
+                    {"name": "하드락 카페 오사카", "desc": "미국식 아침 세트 메뉴", "lat": 34.6686, "lng": 135.4299},
+                ],
+                "sightseeing": [
+                    {"name": "오사카성 천수각", "desc": "도요토미 히데요시가 세운 일본 3대 성곽", "lat": 34.6873, "lng": 135.5262},
+                    {"name": "도톤보리 글리코상", "desc": "오사카의 상징적인 네온사인 거리", "lat": 34.6687, "lng": 135.5010},
+                    {"name": "츠텐카쿠 전망대", "desc": "신세카이의 랜드마크 타워", "lat": 34.6525, "lng": 135.5063},
+                    {"name": "우메다 스카이빌딩 공중정원", "desc": "173m 높이 360도 파노라마 전망", "lat": 34.7052, "lng": 135.4906},
+                ],
+                "lunch": [
+                    {"name": "쿠라스시 도톤보리점", "desc": "회전초밥 체인, 100엔 스시", "lat": 34.6690, "lng": 135.5025},
+                    {"name": "하루카스 다이닝", "desc": "아베노 하루카스 레스토랑가", "lat": 34.6463, "lng": 135.5138},
+                    {"name": "치보 본점", "desc": "오코노미야키 명가, 70년 전통", "lat": 34.6685, "lng": 135.5013},
+                    {"name": "키지 본점", "desc": "철판 오코노미야키의 성지", "lat": 34.7048, "lng": 135.4948},
+                ],
+                "activity": [
+                    {"name": "유니버설 스튜디오 재팬", "desc": "해리포터, 슈퍼닌텐도월드 테마파크", "lat": 34.6654, "lng": 135.4323},
+                    {"name": "신세카이 쟝쟝요코초", "desc": "레트로 골목 탐방 & 꼬치튀김 체험", "lat": 34.6520, "lng": 135.5060},
+                    {"name": "구로몬 시장", "desc": "오사카의 부엌, 신선한 해산물 시식", "lat": 34.6668, "lng": 135.5069},
+                    {"name": "덴덴타운", "desc": "오사카의 아키하바라, 전자상가 & 서브컬처", "lat": 34.6598, "lng": 135.5056},
+                ],
+                "dinner": [
+                    {"name": "칸자키 갓텐 스시", "desc": "신선한 스시 오마카세", "lat": 34.6977, "lng": 135.4912},
+                    {"name": "다루마 신세카이 본점", "desc": "쿠시카츠(꼬치튀김) 원조 맛집", "lat": 34.6522, "lng": 135.5059},
+                    {"name": "아지노야 본점", "desc": "타코야키 원조 맛집, 18개입", "lat": 34.6525, "lng": 135.5065},
+                    {"name": "마츠리야", "desc": "야키니쿠 무한리필 전문점", "lat": 34.7005, "lng": 135.4973},
+                ],
+            },
+            "제주도": {
+                "themes": ["제주시 & 동문시장 탐방", "성산일출봉 & 동부 투어", "서귀포 & 중문 관광", "애월 & 서부 카페 투어"],
+                "breakfast": [
+                    {"name": "올래국수", "desc": "제주 고기국수 맛집, 줄서는 식당", "lat": 33.5121, "lng": 126.5232},
+                    {"name": "삼대국수회관", "desc": "3대째 이어온 고기국수 명가", "lat": 33.4996, "lng": 126.5287},
+                    {"name": "우진해장국", "desc": "제주 현지인 아침 해장 맛집", "lat": 33.4912, "lng": 126.4935},
+                    {"name": "명진전복 본점", "desc": "전복죽, 전복돌솥밥 전문점", "lat": 33.5025, "lng": 126.5412},
+                ],
+                "sightseeing": [
+                    {"name": "성산일출봉", "desc": "유네스코 세계자연유산, 해돋이 명소", "lat": 33.4587, "lng": 126.9425},
+                    {"name": "만장굴", "desc": "세계 최장 용암동굴, 천연기념물", "lat": 33.5282, "lng": 126.7712},
+                    {"name": "천지연폭포", "desc": "서귀포 대표 폭포, 야간 조명", "lat": 33.2469, "lng": 126.5548},
+                    {"name": "한라산 어리목 코스", "desc": "제주 최고봉 트레킹", "lat": 33.3617, "lng": 126.4969},
+                ],
+                "lunch": [
+                    {"name": "제주김만복 본점", "desc": "전복김밥, 성게김밥 원조", "lat": 33.5012, "lng": 126.5287},
+                    {"name": "돈사돈 본점", "desc": "제주 흑돼지 구이 맛집", "lat": 33.4856, "lng": 126.4923},
+                    {"name": "미영이네 식당", "desc": "갈치조림, 옥돔구이 현지 맛집", "lat": 33.2512, "lng": 126.5612},
+                    {"name": "자매국수", "desc": "제주 비빔국수, 고기국수 맛집", "lat": 33.2469, "lng": 126.5023},
+                ],
+                "activity": [
+                    {"name": "섭지코지", "desc": "드라마 촬영지, 해안 절경 산책로", "lat": 33.4240, "lng": 126.9296},
+                    {"name": "우도", "desc": "소가 누운 모양의 아름다운 섬", "lat": 33.5063, "lng": 126.9520},
+                    {"name": "카멜리아힐", "desc": "동양 최대 동백꽃 수목원", "lat": 33.2898, "lng": 126.3689},
+                    {"name": "아쿠아플라넷 제주", "desc": "아시아 최대 규모 아쿠아리움", "lat": 33.4337, "lng": 126.9269},
+                ],
+                "dinner": [
+                    {"name": "흑돼지거리 돈사돈", "desc": "제주 흑돼지 숯불구이", "lat": 33.4856, "lng": 126.4923},
+                    {"name": "광해회국수", "desc": "전복, 소라, 성게 해산물 국수", "lat": 33.4687, "lng": 126.9165},
+                    {"name": "제주 동문시장 야시장", "desc": "현지 먹거리 투어, 흑돼지꼬치", "lat": 33.5125, "lng": 126.5260},
+                    {"name": "오는정김밥", "desc": "한치물회, 성게비빔밥 맛집", "lat": 33.2512, "lng": 126.5123},
+                ],
+            },
+        }
+        return places_db.get(destination, places_db["오사카"])
+
     def _generate_mock_plans(
         self,
         destination: str,
@@ -426,83 +498,77 @@ class TravelPlannerAgent:
         styles: List[TravelStyle],
         places_info: Dict[str, List[Dict]],
     ) -> List[DailyPlan]:
-        """Mock 일정 생성 (API 실패 시 대체)."""
+        """Mock 일정 생성 (API 실패 시 대체) - 실제 장소명 사용."""
         num_days = (end_date - start_date).days + 1
-        daily_budget = budget // num_days
+        daily_budget = budget // num_days if num_days > 0 else budget
 
-        # 목적지별 기본 좌표
-        base_coords = {
-            "오사카": (34.6937, 135.5023),
-            "도쿄": (35.6762, 139.6503),
-            "교토": (35.0116, 135.7681),
-            "방콕": (13.7563, 100.5018),
-            "파리": (48.8566, 2.3522),
-        }
-
-        base_lat, base_lng = base_coords.get(destination, (35.6762, 139.6503))
+        # 실제 장소 데이터 가져오기
+        places = self._get_real_places(destination)
+        themes = places.get("themes", [f"{destination} 탐방"])
 
         daily_plans = []
-        themes = [
-            f"{destination} 도심 탐방",
-            f"{destination} 문화 체험",
-            f"{destination} 미식 투어",
-            f"{destination} 쇼핑 & 휴식",
-        ]
 
         for day in range(num_days):
             current_date = start_date + timedelta(days=day)
             theme = themes[day % len(themes)]
 
+            # 각 카테고리에서 해당 날짜에 맞는 장소 선택
+            breakfast = places["breakfast"][day % len(places["breakfast"])]
+            sightseeing = places["sightseeing"][day % len(places["sightseeing"])]
+            lunch = places["lunch"][day % len(places["lunch"])]
+            activity = places["activity"][day % len(places["activity"])]
+            dinner = places["dinner"][day % len(places["dinner"])]
+
             schedules = [
                 Schedule(
                     order=1,
                     time="09:30",
-                    place=f"{destination} 아침 식사",
+                    place=breakfast["name"],
                     category=PlaceCategory.FOOD,
                     duration_min=60,
                     estimated_cost=int(daily_budget * 0.1),
-                    description="현지 조식 맛집",
-                    location=Location(lat=base_lat + 0.001, lng=base_lng + 0.001),
+                    description=breakfast["desc"],
+                    location=Location(lat=breakfast["lat"], lng=breakfast["lng"]),
                 ),
                 Schedule(
                     order=2,
                     time="11:00",
-                    place=f"{destination} 명소 {day + 1}",
+                    place=sightseeing["name"],
                     category=PlaceCategory.SIGHTSEEING,
                     duration_min=120,
                     estimated_cost=int(daily_budget * 0.15),
-                    description="인기 관광지",
-                    location=Location(lat=base_lat + 0.003, lng=base_lng + 0.002),
+                    description=sightseeing["desc"],
+                    location=Location(lat=sightseeing["lat"], lng=sightseeing["lng"]),
                 ),
                 Schedule(
                     order=3,
                     time="13:30",
-                    place=f"{destination} 점심 맛집",
+                    place=lunch["name"],
                     category=PlaceCategory.FOOD,
                     duration_min=90,
                     estimated_cost=int(daily_budget * 0.2),
-                    description="현지 인기 음식점",
-                    location=Location(lat=base_lat + 0.004, lng=base_lng + 0.003),
+                    description=lunch["desc"],
+                    location=Location(lat=lunch["lat"], lng=lunch["lng"]),
                 ),
                 Schedule(
                     order=4,
                     time="15:30",
-                    place=f"{destination} 체험 {day + 1}",
+                    place=activity["name"],
                     category=PlaceCategory.ACTIVITY,
                     duration_min=120,
                     estimated_cost=int(daily_budget * 0.25),
-                    description="현지 문화 체험",
-                    location=Location(lat=base_lat + 0.005, lng=base_lng + 0.004),
+                    description=activity["desc"],
+                    location=Location(lat=activity["lat"], lng=activity["lng"]),
                 ),
                 Schedule(
                     order=5,
                     time="18:00",
-                    place=f"{destination} 저녁 식사",
+                    place=dinner["name"],
                     category=PlaceCategory.FOOD,
                     duration_min=120,
                     estimated_cost=int(daily_budget * 0.3),
-                    description="저녁 맛집",
-                    location=Location(lat=base_lat + 0.002, lng=base_lng + 0.005),
+                    description=dinner["desc"],
+                    location=Location(lat=dinner["lat"], lng=dinner["lng"]),
                 ),
             ]
 

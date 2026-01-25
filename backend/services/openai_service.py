@@ -45,7 +45,7 @@ class OpenAIService:
         tools: Optional[List[Dict[str, Any]]] = None,
         tool_choice: Optional[str] = "auto",
         temperature: float = 0.7,
-        max_tokens: int = 4096,
+        max_tokens: int = 2048,
     ) -> Dict[str, Any]:
         """
         Create a chat completion with optional function calling.
