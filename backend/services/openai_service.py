@@ -44,7 +44,7 @@ class OpenAIService:
         messages: List[Dict[str, str]],
         tools: Optional[List[Dict[str, Any]]] = None,
         tool_choice: Optional[str] = "auto",
-        max_completion_tokens: int = 2048,
+        # max_completion_tokens: int = 2048,
     ) -> Dict[str, Any]:
         """
         Create a chat completion with optional function calling.
@@ -68,7 +68,7 @@ class OpenAIService:
             kwargs = {
                 "model": self.model,
                 "messages": messages,
-                "max_completion_tokens": max_completion_tokens,
+                # "max_completion_tokens": max_completion_tokens,
             }
 
             if tools:
@@ -78,7 +78,7 @@ class OpenAIService:
             logger.debug(f"OpenAI request: {len(messages)} messages, tools: {bool(tools)}, model: {self.model}")
 
             response = await self.client.chat.completions.create(**kwargs)
-
+            
             message = response.choices[0].message
             content = message.content
             tool_calls = message.tool_calls or []
@@ -124,7 +124,7 @@ class OpenAIService:
     async def chat_completion_stream(
         self,
         messages: List[Dict[str, str]],
-        max_completion_tokens: int = 4096,
+        # max_completion_tokens: int = 4096,
     ) -> AsyncGenerator[str, None]:
         """
         Create a streaming chat completion.
@@ -146,7 +146,7 @@ class OpenAIService:
             stream = await self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
-                max_completion_tokens=max_completion_tokens,
+                # max_completion_tokens=max_completion_tokens,
                 stream=True,
             )
 
@@ -202,7 +202,7 @@ class OpenAIService:
                     retry_response = await self.chat_completion(
                         messages=current_messages,
                         tools=None,
-                        max_completion_tokens=4096,
+                        # max_completion_tokens=4096,
                     )
                     return {
                         "content": retry_response["content"],
