@@ -239,7 +239,7 @@ class TravelConsultantAgent:
                 response = await openai_service.chat_completion(
                     messages=[{"role": "user", "content": translation_prompt}],
                     temperature=0.3,
-                    max_tokens=500,
+                    max_completion_tokens=500,
                 )
 
                 result["translated"] = response["content"]

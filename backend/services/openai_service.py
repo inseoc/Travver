@@ -45,7 +45,7 @@ class OpenAIService:
         tools: Optional[List[Dict[str, Any]]] = None,
         tool_choice: Optional[str] = "auto",
         temperature: float = 0.7,
-        max_tokens: int = 2048,
+        max_completion_tokens: int = 2048,
     ) -> Dict[str, Any]:
         """
         Create a chat completion with optional function calling.
@@ -55,7 +55,7 @@ class OpenAIService:
             tools: Optional list of tool definitions for function calling
             tool_choice: How to select tools ("auto", "none", or specific)
             temperature: Sampling temperature (0-2)
-            max_tokens: Maximum tokens in response
+            max_completion_tokens: Maximum tokens in response
 
         Returns:
             OpenAI response dict
@@ -71,7 +71,7 @@ class OpenAIService:
                 "model": self.model,
                 "messages": messages,
                 "temperature": temperature,
-                "max_tokens": max_tokens,
+                "max_completion_tokens": max_completion_tokens,
             }
 
             if tools:
@@ -114,7 +114,7 @@ class OpenAIService:
         self,
         messages: List[Dict[str, str]],
         temperature: float = 0.7,
-        max_tokens: int = 4096,
+        max_completion_tokens: int = 4096,
     ) -> AsyncGenerator[str, None]:
         """
         Create a streaming chat completion.
@@ -122,7 +122,7 @@ class OpenAIService:
         Args:
             messages: List of message dicts
             temperature: Sampling temperature
-            max_tokens: Maximum tokens
+            max_completion_tokens: Maximum tokens
 
         Yields:
             Content chunks as they arrive
@@ -138,7 +138,7 @@ class OpenAIService:
                 model=self.model,
                 messages=messages,
                 temperature=temperature,
-                max_tokens=max_tokens,
+                max_completion_tokens=max_completion_tokens,
                 stream=True,
             )
 
