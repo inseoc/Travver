@@ -66,10 +66,14 @@ class Settings(BaseSettings):
     @property
     def cors_origins(self) -> List[str]:
         """Get CORS origins as list."""
-        return parse_list_str(
+        origins = parse_list_str(
             self.cors_origins_str,
             ["http://localhost:3000", "http://localhost:8080", "*"]
         )
+        # 개발 환경에서는 모든 출처 허용 (Flutter 웹 등)
+        if self.environment == "development" and "*" not in origins:
+            origins.append("*")
+        return origins
 
     @property
     def effective_gemini_api_key(self) -> str:
