@@ -75,14 +75,28 @@ class OpenAIService:
                 kwargs["tools"] = tools
                 kwargs["tool_choice"] = tool_choice
 
-            logger.debug(f"OpenAI request: {len(messages)} messages, tools: {bool(tools)}")
+            logger.debug(f"OpenAI request: {len(messages)} messages, tools: {bool(tools)}, model: {self.model}")
 
             response = await self.client.chat.completions.create(**kwargs)
 
+            message = response.choices[0].message
+            content = message.content
+            tool_calls = message.tool_calls or []
+            finish_reason = response.choices[0].finish_reason
+
+            # 상세 로깅
             logger.debug(f"OpenAI response: {response.usage.total_tokens} tokens used")
+            logger.debug(f"  - finish_reason: {finish_reason}")
+            logger.debug(f"  - content length: {len(content) if content else 0}")
+            logger.debug(f"  - tool_calls count: {len(tool_calls)}")
+            if content:
+                logger.debug(f"  - content preview: {content[:200]}...")
+            if tool_calls:
+                for tc in tool_calls:
+                    logger.debug(f"  - tool_call: {tc.function.name}({tc.function.arguments[:100]}...)")
 
             return {
-                "content": response.choices[0].message.content,
+                "content": content,
                 "tool_calls": [
                     {
                         "id": tc.id,
@@ -91,9 +105,9 @@ class OpenAIService:
                             "arguments": tc.function.arguments,
                         },
                     }
-                    for tc in (response.choices[0].message.tool_calls or [])
+                    for tc in tool_calls
                 ],
-                "finish_reason": response.choices[0].finish_reason,
+                "finish_reason": finish_reason,
                 "usage": {
                     "prompt_tokens": response.usage.prompt_tokens,
                     "completion_tokens": response.usage.completion_tokens,
@@ -172,7 +186,7 @@ class OpenAIService:
 
         while iteration < max_iterations:
             iteration += 1
-            logger.debug(f"Tool execution iteration {iteration}")
+            logger.debug(f"Tool execution iteration {iteration}/{max_iterations}")
 
             response = await self.chat_completion(
                 messages=current_messages,
@@ -182,6 +196,20 @@ class OpenAIService:
 
             # If no tool calls, return the response
             if not response["tool_calls"]:
+                # content가 비어있으면 tool 없이 다시 요청
+                if not response["content"]:
+                    logger.warning(f"Empty content with no tool calls (finish_reason: {response['finish_reason']}), retrying without tools")
+                    retry_response = await self.chat_completion(
+                        messages=current_messages,
+                        tools=None,
+                        max_completion_tokens=4096,
+                    )
+                    return {
+                        "content": retry_response["content"],
+                        "tools_used": tools_used,
+                        "iterations": iteration,
+                    }
+
                 return {
                     "content": response["content"],
                     "tools_used": tools_used,
