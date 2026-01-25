@@ -46,21 +46,38 @@ class ApiService {
     required int travelers,
     required int budget,
     required List<String> styles,
+    String? accommodationLocation,
+    String? customPreference,
   }) async {
     try {
+      final data = {
+        'destination': destination,
+        'start_date': startDate.toIso8601String().split('T')[0],
+        'end_date': endDate.toIso8601String().split('T')[0],
+        'travelers': travelers,
+        'budget': budget,
+        'styles': styles,
+      };
+
+      // 선택적 필드 추가
+      if (accommodationLocation != null && accommodationLocation.isNotEmpty) {
+        data['accommodation_location'] = accommodationLocation;
+      }
+      if (customPreference != null && customPreference.isNotEmpty) {
+        data['custom_preference'] = customPreference;
+      }
+
       final response = await _dio.post(
-        '/agent/travel-plan',
-        data: {
-          'destination': destination,
-          'start_date': startDate.toIso8601String().split('T')[0],
-          'end_date': endDate.toIso8601String().split('T')[0],
-          'travelers': travelers,
-          'budget': budget,
-          'styles': styles,
-        },
+        '/v1/agent/travel-plan',
+        data: data,
       );
 
-      return Trip.fromJson(response.data);
+      // API 응답에서 trip 필드 추출
+      final responseData = response.data;
+      if (responseData['trip'] != null) {
+        return Trip.fromJson(responseData['trip']);
+      }
+      return Trip.fromJson(responseData);
     } on DioException catch (e) {
       throw _handleError(e);
     }

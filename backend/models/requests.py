@@ -19,14 +19,24 @@ class TravelPlanRequest(BaseModel):
     end_date: date = Field(..., description="여행 종료일")
     travelers: int = Field(default=2, ge=1, le=50, description="여행 인원")
     budget: int = Field(
-        ...,
-        ge=100000,
+        default=500000,
+        ge=0,
         le=50000000,
         description="1인당 예산 (KRW)",
     )
     styles: List[TravelStyle] = Field(
         default_factory=list,
         description="여행 스타일",
+    )
+    accommodation_location: Optional[str] = Field(
+        default=None,
+        max_length=200,
+        description="숙소 위치 (예: 난바역, 제주시청 근처)",
+    )
+    custom_preference: Optional[str] = Field(
+        default=None,
+        max_length=500,
+        description="사용자 커스텀 선호도 (자유 입력)",
     )
 
     @field_validator("end_date")
@@ -58,6 +68,8 @@ class TravelPlanRequest(BaseModel):
                 "travelers": 2,
                 "budget": 500000,
                 "styles": ["food", "sightseeing"],
+                "accommodation_location": "난바역",
+                "custom_preference": "현지인 맛집 위주로, 사진 찍기 좋은 카페 포함",
             }
         }
 
