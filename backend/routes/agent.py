@@ -43,6 +43,8 @@ async def generate_travel_plan(request: TravelPlanRequest) -> TravelPlanResponse
             travelers=request.travelers,
             budget=request.budget,
             styles=request.styles,
+            accommodation_location=request.accommodation_location,
+            custom_preference=request.custom_preference,
         )
 
         return TravelPlanResponse(

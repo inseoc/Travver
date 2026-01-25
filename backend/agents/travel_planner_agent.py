@@ -42,9 +42,24 @@ class TravelPlannerAgent:
 
 ## 역할
 - 목적지, 기간, 예산, 여행 스타일에 맞는 일정 생성
+- **계절에 맞는 장소와 활동 추천** (봄: 벚꽃/야외, 여름: 시원한 실내/야경/바다, 가을: 단풍/축제, 겨울: 따뜻한 실내/온천/크리스마스마켓)
+- **인원 수에 맞는 식당과 활동 추천** (1인 여행: 혼밥 가능한 곳, 커플: 분위기 좋은 곳, 가족/단체: 넓은 공간)
+- **숙소 위치 기반 동선 최적화** (숙소 근처에서 시작/종료, 체크인/체크아웃 시간 고려)
 - 효율적인 동선 고려 (지역별 그룹핑)
 - 현실적인 시간 배분 (이동 시간 포함)
 - 예산에 맞는 장소 추천
+
+## 계절별 추천 가이드
+- **봄 (3~5월)**: 벚꽃 명소, 공원, 야외 카페, 피크닉 스팟
+- **여름 (6~8월)**: 시원한 실내 명소, 야경 스팟, 해변/수영장, 빙수/아이스크림 맛집, 늦은 저녁 활동
+- **가을 (9~11월)**: 단풍 명소, 등산/하이킹, 축제, 와인/전통주
+- **겨울 (12~2월)**: 온천, 따뜻한 실내 명소, 크리스마스 마켓, 겨울 먹거리(라멘, 전골류), 스키/눈썰매
+
+## 인원별 추천 가이드
+- **1명**: 혼밥 가능한 식당, 바 좌석, 1인 활동 위주
+- **2명**: 커플/친구 분위기 좋은 곳, 대화하기 좋은 카페
+- **3~4명**: 단체석 가능한 식당, 그룹 체험 활동
+- **5명 이상**: 단체 예약 가능한 곳, 넓은 공간
 
 ## 일정 생성 규칙
 1. 하루 일정은 보통 4-6개 장소로 구성
@@ -52,6 +67,7 @@ class TravelPlannerAgent:
 3. 식사 시간 고려 (아침, 점심, 저녁)
 4. 장소 간 이동 시간 고려 (최소 30분)
 5. 각 장소에서 적절한 체류 시간 배분
+6. **숙소 위치가 주어진 경우**: 첫날은 숙소 근처에서 시작, 마지막 날은 숙소 근처에서 종료
 
 ## 카테고리
 - food: 맛집, 레스토랑, 카페
@@ -73,6 +89,8 @@ class TravelPlannerAgent:
         travelers: int,
         budget: int,
         styles: List[TravelStyle],
+        accommodation_location: Optional[str] = None,
+        custom_preference: Optional[str] = None,
     ) -> Trip:
         """
         여행 일정을 생성합니다.
@@ -84,6 +102,8 @@ class TravelPlannerAgent:
             travelers: 여행 인원
             budget: 1인당 예산 (KRW)
             styles: 여행 스타일
+            accommodation_location: 숙소 위치 (선택)
+            custom_preference: 사용자 커스텀 선호도 (선택)
 
         Returns:
             생성된 Trip 객체
@@ -102,10 +122,13 @@ class TravelPlannerAgent:
                 destination=destination,
                 start_date=start_date,
                 end_date=end_date,
+                travelers=travelers,
                 budget=budget,
                 styles=styles,
                 places_info=places_info,
                 exchange_info=exchange_info,
+                accommodation_location=accommodation_location,
+                custom_preference=custom_preference,
             )
 
             # 4. Trip 객체 생성
@@ -188,19 +211,48 @@ class TravelPlannerAgent:
 
         return places_info
 
+    def _get_season(self, month: int) -> str:
+        """월에 따른 계절 반환."""
+        if month in [3, 4, 5]:
+            return "봄"
+        elif month in [6, 7, 8]:
+            return "여름"
+        elif month in [9, 10, 11]:
+            return "가을"
+        else:
+            return "겨울"
+
+    def _get_traveler_type(self, travelers: int) -> str:
+        """인원 수에 따른 여행 타입 반환."""
+        if travelers == 1:
+            return "1인 여행 (혼행)"
+        elif travelers == 2:
+            return "2인 여행 (커플/친구)"
+        elif travelers <= 4:
+            return f"{travelers}인 소그룹 여행"
+        else:
+            return f"{travelers}인 단체 여행"
+
     async def _generate_daily_plans(
         self,
         destination: str,
         start_date: date,
         end_date: date,
+        travelers: int,
         budget: int,
         styles: List[TravelStyle],
         places_info: Dict[str, List[Dict]],
         exchange_info: Dict[str, Any],
+        accommodation_location: Optional[str] = None,
+        custom_preference: Optional[str] = None,
     ) -> List[DailyPlan]:
         """AI를 사용하여 일별 일정 생성."""
         num_days = (end_date - start_date).days + 1
         style_names = [s.value for s in styles]
+
+        # 계절 및 여행 타입 정보
+        season = self._get_season(start_date.month)
+        traveler_type = self._get_traveler_type(travelers)
 
         # 수집된 장소 정보를 텍스트로 변환
         places_text = ""
@@ -211,32 +263,50 @@ class TravelPlannerAgent:
                     places_text += f"- {p['name']}: {p.get('address', '')}, 평점: {p.get('rating', 'N/A')}\n"
                     places_text += f"  좌표: ({p['location']['lat']}, {p['location']['lng']})\n"
 
+        # 숙소 위치 정보
+        accommodation_text = ""
+        if accommodation_location:
+            accommodation_text = f"\n- 숙소 위치: {accommodation_location} (이 근처에서 일정 시작/종료 권장)"
+
+        # 커스텀 선호도 정보
+        custom_pref_text = ""
+        if custom_preference:
+            custom_pref_text = f"\n\n## 사용자 특별 요청\n{custom_preference}"
+
+        # 스타일이 없을 경우 기본값
+        style_text = ', '.join(style_names) if style_names else "일반 관광"
+
         user_prompt = f"""다음 정보로 {num_days}일 여행 일정을 생성해주세요.
 
 ## 여행 정보
 - 목적지: {destination}
 - 기간: {start_date} ~ {end_date} ({num_days}일)
+- **계절: {season}** (계절에 맞는 장소와 활동을 추천해주세요)
+- **여행 인원: {travelers}명 ({traveler_type})** (인원 수에 맞는 식당과 활동을 추천해주세요)
 - 1인 예산: {budget:,}원 (KRW)
 - 환율: 1 KRW = {exchange_info['rate']} {exchange_info['to_currency']}
-- 여행 스타일: {', '.join(style_names)}
+- 여행 스타일: {style_text}{accommodation_text}
+{custom_pref_text}
 
 ## 수집된 장소 정보
 {places_text}
 
 ## 요청사항
 1. 각 날짜별로 4-6개의 일정을 생성
-2. 효율적인 동선 고려
-3. 예산 내에서 현실적인 비용 산정
-4. 식사 시간 포함 (아침, 점심, 저녁)
-5. 각 장소의 실제 좌표 포함
+2. **{season}에 어울리는 장소와 활동 중심으로 구성**
+3. **{traveler_type}에 적합한 식당과 활동 선택**
+4. 효율적인 동선 고려 (숙소 위치가 있다면 숙소 근처에서 시작/종료)
+5. 예산 내에서 현실적인 비용 산정
+6. 식사 시간 포함 (아침, 점심, 저녁)
+7. 각 장소의 실제 좌표 포함
 
 다음 JSON 형식으로 응답해주세요:
 {{
   "daily_plans": [
     {{
       "day": 1,
-      "date": "2026-03-01",
-      "theme": "도심 탐방",
+      "date": "{start_date}",
+      "theme": "첫날 테마",
       "schedules": [
         {{
           "order": 1,
@@ -245,7 +315,7 @@ class TravelPlannerAgent:
           "category": "sightseeing",
           "duration_min": 90,
           "estimated_cost": 15000,
-          "description": "장소 설명",
+          "description": "장소 설명 ({season}에 어울리는 이유 포함)",
           "location": {{"lat": 34.6687, "lng": 135.5065}}
         }}
       ]

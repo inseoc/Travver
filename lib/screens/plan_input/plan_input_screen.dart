@@ -100,19 +100,22 @@ class _PlanInputScreenState extends State<PlanInputScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // TODO: 실제 API 연동 시 아래 코드 활성화
-      // final apiService = ApiService();
-      // final trip = await apiService.generateTravelPlan(
-      //   destination: _destinationController.text,
-      //   startDate: _dateRange!.start,
-      //   endDate: _dateRange!.end,
-      //   travelers: _travelers,
-      //   budget: _budget.toInt(),
-      //   styles: _selectedStyles.map((s) => s.name).toList(),
-      // );
-
-      // 임시 더미 데이터 생성
-      final trip = _createDummyTrip();
+      // 실제 API 호출
+      final apiService = ApiService();
+      final trip = await apiService.generateTravelPlan(
+        destination: _selectedDestination!,
+        startDate: _dateRange!.start,
+        endDate: _dateRange!.end,
+        travelers: _travelers,
+        budget: 500000, // 기본 예산 (추후 입력 받을 수 있음)
+        styles: _selectedStyles.map((s) => s.name).toList(),
+        accommodationLocation: _accommodationController.text.isNotEmpty
+            ? _accommodationController.text
+            : null,
+        customPreference: _customPreferenceController.text.isNotEmpty
+            ? _customPreferenceController.text
+            : null,
+      );
 
       // Provider에 저장
       await context.read<TripProvider>().addTrip(trip);
