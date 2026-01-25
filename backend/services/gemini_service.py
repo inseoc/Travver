@@ -338,7 +338,6 @@ class GeminiService:
             response = await self._model.generate_content_async(
                 contents=[prompt, image_part],
                 generation_config={
-                    "temperature": 0.4,
                     "max_output_tokens": 1024,
                 },
             )
