@@ -30,7 +30,7 @@ async def lifespan(app: FastAPI):
     else:
         logger.warning("✗ OpenAI API not configured - using fallback mode")
 
-    if settings.gemini_api_key:
+    if settings.effective_gemini_api_key:
         logger.info("✓ Gemini API configured")
     else:
         logger.warning("✗ Gemini API not configured - using fallback mode")
@@ -192,7 +192,7 @@ async def health_check() -> Dict[str, Any]:
         "environment": settings.environment,
         "services": {
             "openai": "configured" if settings.openai_api_key else "not_configured",
-            "gemini": "configured" if settings.gemini_api_key else "not_configured",
+            "gemini": "configured" if settings.effective_gemini_api_key else "not_configured",
             "places": "configured" if settings.google_places_api_key else "not_configured",
         },
     }
