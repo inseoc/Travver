@@ -1,6 +1,7 @@
 """Travel Planner Agent - AI 기반 여행 일정 생성."""
 
 import json
+import re
 import uuid
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional
@@ -344,10 +345,17 @@ class TravelPlannerAgent:
 
                 # JSON 파싱
                 content = response["content"]
-                daily_plans = self._parse_daily_plans(content, start_date)
+                logger.debug(f"AI response content length: {len(content) if content else 0}")
 
-                if daily_plans:
-                    return daily_plans
+                if not content:
+                    logger.warning("AI response content is empty or None")
+                else:
+                    daily_plans = self._parse_daily_plans(content, start_date)
+
+                    if daily_plans:
+                        return daily_plans
+                    else:
+                        logger.warning("Failed to parse daily plans from AI response")
 
             except Exception as e:
                 logger.error(f"OpenAI plan generation failed: {e}")
@@ -358,6 +366,29 @@ class TravelPlannerAgent:
             destination, start_date, end_date, budget, styles, places_info
         )
 
+    def _extract_json_from_response(self, content: str) -> Optional[str]:
+        """AI 응답에서 JSON 문자열 추출."""
+        if not content:
+            return None
+
+        # 1. 마크다운 코드 블록에서 JSON 추출 (```json ... ``` 또는 ``` ... ```)
+        code_block_pattern = r'```(?:json)?\s*([\s\S]*?)```'
+        matches = re.findall(code_block_pattern, content)
+
+        for match in matches:
+            match = match.strip()
+            if match.startswith("{") and match.endswith("}"):
+                return match
+
+        # 2. 순수 JSON 형태로 응답한 경우 (코드 블록 없이)
+        json_start = content.find("{")
+        json_end = content.rfind("}") + 1
+
+        if json_start != -1 and json_end > json_start:
+            return content[json_start:json_end]
+
+        return None
+
     def _parse_daily_plans(
         self,
         content: str,
@@ -366,14 +397,13 @@ class TravelPlannerAgent:
         """AI 응답에서 일정 파싱."""
         try:
             # JSON 부분 추출
-            json_start = content.find("{")
-            json_end = content.rfind("}") + 1
+            json_str = self._extract_json_from_response(content)
 
-            if json_start == -1 or json_end == 0:
+            if not json_str:
                 logger.warning("No JSON found in response")
+                logger.debug(f"Response content: {content[:500] if content else 'None'}...")
                 return []
 
-            json_str = content[json_start:json_end]
             data = json.loads(json_str)
 
             daily_plans = []
