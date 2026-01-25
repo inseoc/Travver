@@ -161,8 +161,7 @@ class TravelConsultantAgent:
         if openai_service.is_available():
             try:
                 async for chunk in openai_service.chat_completion_stream(
-                    messages=messages,
-                    temperature=0.7,
+                    messages=messages
                 ):
                     yield chunk
                 return
@@ -238,7 +237,6 @@ class TravelConsultantAgent:
 
                 response = await openai_service.chat_completion(
                     messages=[{"role": "user", "content": translation_prompt}],
-                    temperature=0.3,
                     max_completion_tokens=500,
                 )
 

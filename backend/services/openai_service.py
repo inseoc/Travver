@@ -44,7 +44,6 @@ class OpenAIService:
         messages: List[Dict[str, str]],
         tools: Optional[List[Dict[str, Any]]] = None,
         tool_choice: Optional[str] = "auto",
-        temperature: float = 0.7,
         max_completion_tokens: int = 2048,
     ) -> Dict[str, Any]:
         """
@@ -54,7 +53,6 @@ class OpenAIService:
             messages: List of message dicts with role and content
             tools: Optional list of tool definitions for function calling
             tool_choice: How to select tools ("auto", "none", or specific)
-            temperature: Sampling temperature (0-2)
             max_completion_tokens: Maximum tokens in response
 
         Returns:
@@ -70,7 +68,6 @@ class OpenAIService:
             kwargs = {
                 "model": self.model,
                 "messages": messages,
-                "temperature": temperature,
                 "max_completion_tokens": max_completion_tokens,
             }
 
@@ -113,7 +110,6 @@ class OpenAIService:
     async def chat_completion_stream(
         self,
         messages: List[Dict[str, str]],
-        temperature: float = 0.7,
         max_completion_tokens: int = 4096,
     ) -> AsyncGenerator[str, None]:
         """
@@ -121,7 +117,6 @@ class OpenAIService:
 
         Args:
             messages: List of message dicts
-            temperature: Sampling temperature
             max_completion_tokens: Maximum tokens
 
         Yields:
@@ -137,7 +132,6 @@ class OpenAIService:
             stream = await self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
-                temperature=temperature,
                 max_completion_tokens=max_completion_tokens,
                 stream=True,
             )
