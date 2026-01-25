@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -99,6 +100,9 @@ class _PlanInputScreenState extends State<PlanInputScreen> {
   Future<void> _generatePlan() async {
     setState(() => _isLoading = true);
 
+    // 진행 상황 다이얼로그 표시
+    _showProgressDialog();
+
     try {
       // 실제 API 호출
       final apiService = ApiService();
@@ -117,6 +121,11 @@ class _PlanInputScreenState extends State<PlanInputScreen> {
             : null,
       );
 
+      // 다이얼로그 닫기
+      if (mounted && Navigator.canPop(context)) {
+        Navigator.of(context).pop();
+      }
+
       // Provider에 저장
       await context.read<TripProvider>().addTrip(trip);
 
@@ -124,6 +133,11 @@ class _PlanInputScreenState extends State<PlanInputScreen> {
         context.go(AppRoutes.planResult, extra: trip.id);
       }
     } catch (e) {
+      // 다이얼로그 닫기
+      if (mounted && Navigator.canPop(context)) {
+        Navigator.of(context).pop();
+      }
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -137,6 +151,16 @@ class _PlanInputScreenState extends State<PlanInputScreen> {
         setState(() => _isLoading = false);
       }
     }
+  }
+
+  void _showProgressDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => _GeneratingProgressDialog(
+        destination: _selectedDestination!,
+      ),
+    );
   }
 
   Trip _createDummyTrip() {
@@ -696,4 +720,216 @@ class _PlanInputScreenState extends State<PlanInputScreen> {
     _accommodationController.clear();
     _nextStep();
   }
+}
+
+/// AI 일정 생성 진행 상황 다이얼로그
+class _GeneratingProgressDialog extends StatefulWidget {
+  final String destination;
+
+  const _GeneratingProgressDialog({required this.destination});
+
+  @override
+  State<_GeneratingProgressDialog> createState() =>
+      _GeneratingProgressDialogState();
+}
+
+class _GeneratingProgressDialogState extends State<_GeneratingProgressDialog> {
+  late Timer _timer;
+  int _elapsedSeconds = 0;
+  int _currentStepIndex = 0;
+
+  final List<_ProgressStep> _steps = [
+    _ProgressStep('장소 정보 수집 중', '인기 명소와 맛집을 찾고 있어요', 0),
+    _ProgressStep('환율 정보 확인 중', '현지 통화 정보를 가져오고 있어요', 10),
+    _ProgressStep('AI가 일정 생성 중', '최적의 동선을 계획하고 있어요', 20),
+    _ProgressStep('일정 최적화 중', '시간과 거리를 고려해 조정하고 있어요', 60),
+    _ProgressStep('마무리 중', '거의 완료되었어요!', 90),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      setState(() {
+        _elapsedSeconds++;
+        // 시간에 따라 단계 업데이트
+        for (int i = _steps.length - 1; i >= 0; i--) {
+          if (_elapsedSeconds >= _steps[i].triggerSeconds) {
+            _currentStepIndex = i;
+            break;
+          }
+        }
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer.cancel();
+    super.dispose();
+  }
+
+  String _formatTime(int seconds) {
+    final minutes = seconds ~/ 60;
+    final secs = seconds % 60;
+    if (minutes > 0) {
+      return '$minutes분 ${secs.toString().padLeft(2, '0')}초';
+    }
+    return '$secs초';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final currentStep = _steps[_currentStepIndex];
+
+    return Dialog(
+      backgroundColor: AppColors.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppDimens.cardRadius),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(AppDimens.spacing24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // 애니메이션 아이콘
+            Stack(
+              alignment: Alignment.center,
+              children: [
+                SizedBox(
+                  width: 80,
+                  height: 80,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 4,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      AppColors.accent.withOpacity(0.3),
+                    ),
+                  ),
+                ),
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    color: AppColors.accent.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.auto_awesome,
+                    color: AppColors.accent,
+                    size: 32,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppDimens.spacing24),
+
+            // 제목
+            Text(
+              '${widget.destination} 여행 일정 생성 중',
+              style: AppTypography.subhead1.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: AppDimens.spacing16),
+
+            // 현재 단계
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppDimens.spacing16,
+                vertical: AppDimens.spacing12,
+              ),
+              decoration: BoxDecoration(
+                color: AppColors.accent.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(AppDimens.radiusMedium),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: const AlwaysStoppedAnimation<Color>(
+                        AppColors.accent,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: AppDimens.spacing8),
+                  Flexible(
+                    child: Text(
+                      currentStep.title,
+                      style: AppTypography.body2.copyWith(
+                        color: AppColors.accent,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppDimens.spacing8),
+
+            // 설명
+            Text(
+              currentStep.description,
+              style: AppTypography.body2.copyWith(
+                color: AppColors.textSecondary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: AppDimens.spacing24),
+
+            // 경과 시간
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppDimens.spacing16,
+                vertical: AppDimens.spacing8,
+              ),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(AppDimens.radiusSmall),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.timer_outlined,
+                    size: 16,
+                    color: AppColors.textSecondary,
+                  ),
+                  const SizedBox(width: AppDimens.spacing4),
+                  Text(
+                    '경과 시간: ${_formatTime(_elapsedSeconds)}',
+                    style: AppTypography.caption.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppDimens.spacing8),
+
+            // 예상 시간 안내
+            Text(
+              'AI가 최적의 일정을 만들고 있어요\n보통 1~2분 정도 소요됩니다',
+              style: AppTypography.caption.copyWith(
+                color: AppColors.textSecondary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ProgressStep {
+  final String title;
+  final String description;
+  final int triggerSeconds;
+
+  _ProgressStep(this.title, this.description, this.triggerSeconds);
 }

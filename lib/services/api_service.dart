@@ -70,6 +70,10 @@ class ApiService {
       final response = await _dio.post(
         '/v1/agent/travel-plan',
         data: data,
+        options: Options(
+          // AI 일정 생성은 시간이 오래 걸릴 수 있으므로 타임아웃 연장
+          receiveTimeout: const Duration(minutes: 3),
+        ),
       );
 
       // API 응답에서 trip 필드 추출
