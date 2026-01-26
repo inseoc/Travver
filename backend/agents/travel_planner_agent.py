@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional
 from core.logger import logger
 from core.exceptions import AIServiceException
 from services.openai_service import openai_service
-from tools import places_tool, exchange_tool
+from tools import places_tool
 from tools.definitions import TRAVEL_PLANNER_TOOLS
 from models.travel import (
     Trip,
@@ -124,13 +124,10 @@ class TravelPlannerAgent:
         logger.info(f"Generating travel plan: {destination}, {start_date} - {end_date}")
 
         try:
-            # 1. 환율 정보 조회
-            exchange_info = await self._get_exchange_rate(destination)
-
-            # 2. 장소 정보 수집
+            # 1. 장소 정보 수집
             places_info = await self._collect_places(destination, styles)
 
-            # 3. AI로 일정 생성
+            # 2. AI로 일정 생성
             daily_plans = await self._generate_daily_plans(
                 destination=destination,
                 start_date=start_date,
@@ -139,7 +136,6 @@ class TravelPlannerAgent:
                 budget=budget,
                 styles=styles,
                 places_info=places_info,
-                exchange_info=exchange_info,
                 accommodation_location=accommodation_location,
                 custom_preference=custom_preference,
             )
@@ -166,26 +162,6 @@ class TravelPlannerAgent:
         except Exception as e:
             logger.error(f"Failed to generate travel plan: {e}")
             raise AIServiceException(f"일정 생성 실패: {str(e)}")
-
-    async def _get_exchange_rate(self, destination: str) -> Dict[str, Any]:
-        """목적지 통화 환율 조회."""
-        # 목적지별 통화 매핑
-        currency_map = {
-            "일본": "JPY", "오사카": "JPY", "도쿄": "JPY", "교토": "JPY",
-            "미국": "USD", "뉴욕": "USD", "LA": "USD",
-            "유럽": "EUR", "파리": "EUR", "런던": "GBP",
-            "태국": "THB", "방콕": "THB",
-            "베트남": "VND", "호치민": "VND", "하노이": "VND",
-            "중국": "CNY", "상하이": "CNY", "베이징": "CNY",
-        }
-
-        to_currency = "JPY"  # 기본값
-        for key, currency in currency_map.items():
-            if key in destination:
-                to_currency = currency
-                break
-
-        return await exchange_tool.get_exchange_rate("KRW", to_currency)
 
     async def _collect_places(
         self,
@@ -257,7 +233,6 @@ class TravelPlannerAgent:
         budget: int,
         styles: List[TravelStyle],
         places_info: Dict[str, List[Dict]],
-        exchange_info: Dict[str, Any],
         accommodation_location: Optional[str] = None,
         custom_preference: Optional[str] = None,
     ) -> List[DailyPlan]:
@@ -299,7 +274,6 @@ class TravelPlannerAgent:
 - **계절: {season}** (계절에 맞는 장소와 활동을 추천해주세요)
 - **여행 인원: {travelers}명 ({traveler_type})** (인원 수에 맞는 식당과 활동을 추천해주세요)
 - 1인 예산: {budget:,}원 (KRW)
-- 환율: 1 KRW = {exchange_info['rate']} {exchange_info['to_currency']}
 - 여행 스타일: {style_text}{accommodation_text}
 {custom_pref_text}
 
