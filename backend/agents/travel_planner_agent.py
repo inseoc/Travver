@@ -1,5 +1,6 @@
 """Travel Planner Agent - AI 기반 여행 일정 생성."""
 
+import asyncio
 import json
 import re
 import uuid
@@ -188,35 +189,37 @@ class TravelPlannerAgent:
         destination: str,
         styles: List[TravelStyle],
     ) -> Dict[str, List[Dict]]:
-        """여행 스타일에 맞는 장소 정보 수집."""
-        places_info = {}
-
-        # 스타일별 검색 키워드
+        """여행 스타일에 맞는 장소 정보 수집 (병렬 처리)."""
+        # 스타일별 대표 검색 키워드 (1개로 축소하여 속도 향상)
         style_queries = {
-            TravelStyle.FOOD: ["맛집", "레스토랑", "현지 음식"],
-            TravelStyle.SIGHTSEEING: ["관광지", "명소", "랜드마크"],
-            TravelStyle.RELAXATION: ["온천", "스파", "공원"],
-            TravelStyle.ACTIVITY: ["액티비티", "체험", "투어"],
-            TravelStyle.SHOPPING: ["쇼핑", "시장", "백화점"],
-            TravelStyle.PHOTO: ["포토스팟", "뷰포인트", "인스타그램"],
+            TravelStyle.FOOD: "맛집",
+            TravelStyle.SIGHTSEEING: "관광지",
+            TravelStyle.RELAXATION: "온천",
+            TravelStyle.ACTIVITY: "액티비티",
+            TravelStyle.SHOPPING: "쇼핑",
+            TravelStyle.PHOTO: "포토스팟",
         }
 
-        for style in styles:
-            queries = style_queries.get(style, [style.value])
-            style_places = []
+        async def search_for_style(style: TravelStyle) -> tuple:
+            """단일 스타일에 대한 검색 수행."""
+            query = style_queries.get(style, style.value)
+            try:
+                results = await places_tool.search_places(
+                    query=query,
+                    location=destination,
+                    max_results=5,
+                )
+                return (style.value, results)
+            except Exception as e:
+                logger.warning(f"Failed to search places for {query}: {e}")
+                return (style.value, [])
 
-            for query in queries:
-                try:
-                    results = await places_tool.search_places(
-                        query=query,
-                        location=destination,
-                        max_results=5,
-                    )
-                    style_places.extend(results)
-                except Exception as e:
-                    logger.warning(f"Failed to search places for {query}: {e}")
+        # 모든 스타일에 대해 병렬로 검색 실행
+        tasks = [search_for_style(style) for style in styles]
+        results = await asyncio.gather(*tasks)
 
-            places_info[style.value] = style_places
+        # 결과를 딕셔너리로 변환
+        places_info = {style: places for style, places in results}
 
         return places_info
 
@@ -334,23 +337,16 @@ class TravelPlannerAgent:
   ]
 }}"""
 
-        # Tool handlers 정의
-        tool_handlers = {
-            "search_places": places_tool.search_places,
-            "get_place_details": places_tool.get_place_details,
-            "get_exchange_rate": exchange_tool.get_exchange_rate,
-        }
-
+        # 이미 장소 정보가 수집되어 있으므로 tool calling 없이 직접 생성
+        # 이렇게 하면 API 호출이 1회로 줄어들어 속도가 크게 향상됨
         if openai_service.is_available():
             try:
-                response = await openai_service.execute_with_tools(
+                response = await openai_service.chat_completion(
                     messages=[
                         {"role": "system", "content": self.system_prompt},
                         {"role": "user", "content": user_prompt},
                     ],
-                    tools=TRAVEL_PLANNER_TOOLS,
-                    tool_handlers=tool_handlers,
-                    max_iterations=3,
+                    tools=None,  # tool calling 비활성화 - 이미 장소 정보 수집됨
                 )
 
                 # JSON 파싱
