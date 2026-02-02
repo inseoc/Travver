@@ -16,6 +16,35 @@ class PlacesTool:
         """Initialize Places tool."""
         self.api_key = settings.google_places_api_key
         self.base_url = "https://maps.googleapis.com/maps/api/place"
+        self._geocode_cache: Dict[str, tuple] = {}
+        self._http_client: Optional[httpx.AsyncClient] = None
+
+    def _get_client(self) -> httpx.AsyncClient:
+        """Get or create reusable HTTP client."""
+        if self._http_client is None or self._http_client.is_closed:
+            self._http_client = httpx.AsyncClient(timeout=10.0)
+        return self._http_client
+
+    async def _geocode(self, location: str) -> Optional[tuple]:
+        """Geocode a location with caching."""
+        if location in self._geocode_cache:
+            return self._geocode_cache[location]
+
+        geocode_url = "https://maps.googleapis.com/maps/api/geocode/json"
+        client = self._get_client()
+        geo_response = await client.get(
+            geocode_url,
+            params={"address": location, "key": self.api_key},
+        )
+        geo_data = geo_response.json()
+
+        if geo_data.get("status") != "OK" or not geo_data.get("results"):
+            return None
+
+        lat = geo_data["results"][0]["geometry"]["location"]["lat"]
+        lng = geo_data["results"][0]["geometry"]["location"]["lng"]
+        self._geocode_cache[location] = (lat, lng)
+        return (lat, lng)
 
     def is_available(self) -> bool:
         """Check if tool is available."""
@@ -51,61 +80,54 @@ class PlacesTool:
             return self._get_mock_places(query, location, max_results)
 
         try:
-            # 먼저 지역의 좌표를 가져옴
-            geocode_url = f"https://maps.googleapis.com/maps/api/geocode/json"
-            async with httpx.AsyncClient() as client:
-                geo_response = await client.get(
-                    geocode_url,
-                    params={"address": location, "key": self.api_key},
-                )
-                geo_data = geo_response.json()
+            # 먼저 지역의 좌표를 가져옴 (캐시 활용)
+            coords = await self._geocode(location)
+            if not coords:
+                logger.warning(f"Geocoding failed for: {location}")
+                return self._get_mock_places(query, location, max_results)
 
-                if geo_data.get("status") != "OK" or not geo_data.get("results"):
-                    logger.warning(f"Geocoding failed for: {location}")
-                    return self._get_mock_places(query, location, max_results)
+            lat, lng = coords
+            client = self._get_client()
 
-                lat = geo_data["results"][0]["geometry"]["location"]["lat"]
-                lng = geo_data["results"][0]["geometry"]["location"]["lng"]
+            # Text Search API 호출
+            search_url = f"{self.base_url}/textsearch/json"
+            params = {
+                "query": f"{query} in {location}",
+                "location": f"{lat},{lng}",
+                "radius": int(radius_km * 1000),
+                "key": self.api_key,
+                "language": "ko",
+            }
 
-                # Text Search API 호출
-                search_url = f"{self.base_url}/textsearch/json"
-                params = {
-                    "query": f"{query} in {location}",
-                    "location": f"{lat},{lng}",
-                    "radius": int(radius_km * 1000),
-                    "key": self.api_key,
-                    "language": "ko",
-                }
+            if place_type:
+                params["type"] = place_type
 
-                if place_type:
-                    params["type"] = place_type
+            response = await client.get(search_url, params=params)
+            data = response.json()
 
-                response = await client.get(search_url, params=params)
-                data = response.json()
+            if data.get("status") != "OK":
+                logger.warning(f"Places search failed: {data.get('status')}")
+                return self._get_mock_places(query, location, max_results)
 
-                if data.get("status") != "OK":
-                    logger.warning(f"Places search failed: {data.get('status')}")
-                    return self._get_mock_places(query, location, max_results)
+            results = []
+            for place in data.get("results", [])[:max_results]:
+                results.append({
+                    "place_id": place.get("place_id"),
+                    "name": place.get("name"),
+                    "address": place.get("formatted_address"),
+                    "location": {
+                        "lat": place["geometry"]["location"]["lat"],
+                        "lng": place["geometry"]["location"]["lng"],
+                    },
+                    "rating": place.get("rating"),
+                    "user_ratings_total": place.get("user_ratings_total"),
+                    "types": place.get("types", []),
+                    "price_level": place.get("price_level"),
+                    "open_now": place.get("opening_hours", {}).get("open_now"),
+                })
 
-                results = []
-                for place in data.get("results", [])[:max_results]:
-                    results.append({
-                        "place_id": place.get("place_id"),
-                        "name": place.get("name"),
-                        "address": place.get("formatted_address"),
-                        "location": {
-                            "lat": place["geometry"]["location"]["lat"],
-                            "lng": place["geometry"]["location"]["lng"],
-                        },
-                        "rating": place.get("rating"),
-                        "user_ratings_total": place.get("user_ratings_total"),
-                        "types": place.get("types", []),
-                        "price_level": place.get("price_level"),
-                        "open_now": place.get("opening_hours", {}).get("open_now"),
-                    })
-
-                logger.info(f"Found {len(results)} places for '{query}' in {location}")
-                return results
+            logger.info(f"Found {len(results)} places for '{query}' in {location}")
+            return results
 
         except Exception as e:
             logger.error(f"Places search error: {e}")
@@ -137,58 +159,59 @@ class PlacesTool:
             return self._get_mock_place_details(place_name, location)
 
         try:
-            async with httpx.AsyncClient() as client:
-                # place_id가 없으면 검색해서 가져옴
-                if not place_id:
-                    places = await self.search_places(place_name, location, max_results=1)
-                    if places:
-                        place_id = places[0].get("place_id")
+            # place_id가 없으면 검색해서 가져옴
+            if not place_id:
+                places = await self.search_places(place_name, location, max_results=1)
+                if places:
+                    place_id = places[0].get("place_id")
 
-                if not place_id:
-                    return self._get_mock_place_details(place_name, location)
+            if not place_id:
+                return self._get_mock_place_details(place_name, location)
 
-                # Place Details API 호출
-                details_url = f"{self.base_url}/details/json"
-                params = {
-                    "place_id": place_id,
-                    "key": self.api_key,
-                    "language": "ko",
-                    "fields": "name,formatted_address,geometry,rating,user_ratings_total,"
-                             "opening_hours,price_level,website,formatted_phone_number,"
-                             "reviews,types,photos",
-                }
+            client = self._get_client()
 
-                response = await client.get(details_url, params=params)
-                data = response.json()
+            # Place Details API 호출
+            details_url = f"{self.base_url}/details/json"
+            params = {
+                "place_id": place_id,
+                "key": self.api_key,
+                "language": "ko",
+                "fields": "name,formatted_address,geometry,rating,user_ratings_total,"
+                         "opening_hours,price_level,website,formatted_phone_number,"
+                         "reviews,types,photos",
+            }
 
-                if data.get("status") != "OK":
-                    return self._get_mock_place_details(place_name, location)
+            response = await client.get(details_url, params=params)
+            data = response.json()
 
-                result = data.get("result", {})
-                return {
-                    "place_id": place_id,
-                    "name": result.get("name"),
-                    "address": result.get("formatted_address"),
-                    "location": {
-                        "lat": result.get("geometry", {}).get("location", {}).get("lat"),
-                        "lng": result.get("geometry", {}).get("location", {}).get("lng"),
-                    },
-                    "rating": result.get("rating"),
-                    "user_ratings_total": result.get("user_ratings_total"),
-                    "price_level": result.get("price_level"),
-                    "opening_hours": result.get("opening_hours", {}).get("weekday_text", []),
-                    "website": result.get("website"),
-                    "phone": result.get("formatted_phone_number"),
-                    "types": result.get("types", []),
-                    "reviews": [
-                        {
-                            "rating": r.get("rating"),
-                            "text": r.get("text"),
-                            "time": r.get("relative_time_description"),
-                        }
-                        for r in result.get("reviews", [])[:3]
-                    ],
-                }
+            if data.get("status") != "OK":
+                return self._get_mock_place_details(place_name, location)
+
+            result = data.get("result", {})
+            return {
+                "place_id": place_id,
+                "name": result.get("name"),
+                "address": result.get("formatted_address"),
+                "location": {
+                    "lat": result.get("geometry", {}).get("location", {}).get("lat"),
+                    "lng": result.get("geometry", {}).get("location", {}).get("lng"),
+                },
+                "rating": result.get("rating"),
+                "user_ratings_total": result.get("user_ratings_total"),
+                "price_level": result.get("price_level"),
+                "opening_hours": result.get("opening_hours", {}).get("weekday_text", []),
+                "website": result.get("website"),
+                "phone": result.get("formatted_phone_number"),
+                "types": result.get("types", []),
+                "reviews": [
+                    {
+                        "rating": r.get("rating"),
+                        "text": r.get("text"),
+                        "time": r.get("relative_time_description"),
+                    }
+                    for r in result.get("reviews", [])[:3]
+                ],
+            }
 
         except Exception as e:
             logger.error(f"Place details error: {e}")
