@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../app/theme.dart';
 import '../../models/trip.dart';
 import '../../providers/trip_provider.dart';
+import '../../services/api_service.dart';
 
 /// 나만의 영상 화면
 /// - AI로 시네마틱 영상 생성
@@ -42,6 +43,7 @@ class _VideoCreatorScreenState extends State<VideoCreatorScreen> {
   bool _isProcessing = false;
   Trip? _trip;
   final ImagePicker _picker = ImagePicker();
+  final ApiService _apiService = ApiService();
 
   final List<VideoStyle> _styles = [
     VideoStyle('cinematic', '시네마틱 여행', Icons.movie_creation),
@@ -680,8 +682,22 @@ class _VideoCreatorScreenState extends State<VideoCreatorScreen> {
     setState(() => _isProcessing = true);
 
     try {
-      // TODO: 실제 API 연동
-      await Future.delayed(const Duration(seconds: 3));
+      final mediaFiles = _selectedMedia
+          .where((m) => m.bytes != null)
+          .map((m) => MediaFile(
+                bytes: m.bytes!,
+                name: m.name,
+                isVideo: m.isVideo,
+              ))
+          .toList();
+
+      final resultUrl = await _apiService.createVideoBytes(
+        mediaFiles: mediaFiles,
+        style: _selectedStyle!,
+        music: _selectedMusic!,
+        duration: _duration,
+        tripId: widget.tripId,
+      );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
