@@ -1,5 +1,15 @@
+import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import '../models/models.dart';
+
+/// 미디어 파일 데이터 (bytes 기반, 웹 호환)
+class MediaFile {
+  final Uint8List bytes;
+  final String name;
+  final bool isVideo;
+
+  MediaFile({required this.bytes, required this.name, this.isVideo = false});
+}
 
 /// API 서비스 - 백엔드 통신
 class ApiService {
@@ -150,8 +160,47 @@ class ApiService {
       });
 
       final response = await _dio.post(
-        '/memories/photo',
+        '/v1/memories/photo',
         data: formData,
+        options: Options(
+          receiveTimeout: const Duration(minutes: 2),
+        ),
+      );
+
+      return response.data['result_url'] as String;
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  /// 사진 꾸미기 API (bytes 기반 - 웹 지원)
+  Future<String> decoratePhotoBytes({
+    required Uint8List imageBytes,
+    required String fileName,
+    required String style,
+    String? tripId,
+  }) async {
+    try {
+      final formData = FormData.fromMap({
+        'image': MultipartFile.fromBytes(
+          imageBytes,
+          filename: fileName,
+          contentType: DioMediaType.parse(
+            fileName.toLowerCase().endsWith('.png')
+                ? 'image/png'
+                : 'image/jpeg',
+          ),
+        ),
+        'style': style,
+        if (tripId != null) 'trip_id': tripId,
+      });
+
+      final response = await _dio.post(
+        '/v1/memories/photo',
+        data: formData,
+        options: Options(
+          receiveTimeout: const Duration(minutes: 2),
+        ),
       );
 
       return response.data['result_url'] as String;
@@ -184,7 +233,58 @@ class ApiService {
       ]);
 
       final response = await _dio.post(
-        '/memories/video',
+        '/v1/memories/video',
+        data: formData,
+        options: Options(
+          receiveTimeout: const Duration(minutes: 5),
+        ),
+      );
+
+      return response.data['result_url'] as String;
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  /// 영상 생성 API (bytes 기반 - 웹 지원)
+  Future<String> createVideoBytes({
+    required List<MediaFile> mediaFiles,
+    required String style,
+    required String music,
+    required int duration,
+    String? tripId,
+  }) async {
+    try {
+      final formData = FormData();
+
+      for (final media in mediaFiles) {
+        final mimeType = media.isVideo
+            ? (media.name.toLowerCase().endsWith('.mov')
+                ? 'video/quicktime'
+                : 'video/mp4')
+            : (media.name.toLowerCase().endsWith('.png')
+                ? 'image/png'
+                : 'image/jpeg');
+
+        formData.files.add(MapEntry(
+          'media',
+          MultipartFile.fromBytes(
+            media.bytes,
+            filename: media.name,
+            contentType: DioMediaType.parse(mimeType),
+          ),
+        ));
+      }
+
+      formData.fields.addAll([
+        MapEntry('style', style),
+        MapEntry('music', music),
+        MapEntry('duration', duration.toString()),
+        if (tripId != null) MapEntry('trip_id', tripId),
+      ]);
+
+      final response = await _dio.post(
+        '/v1/memories/video',
         data: formData,
         options: Options(
           receiveTimeout: const Duration(minutes: 5),

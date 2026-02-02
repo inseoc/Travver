@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../app/theme.dart';
 import '../../models/trip.dart';
 import '../../providers/trip_provider.dart';
+import '../../services/api_service.dart';
 
 /// 사진 꾸미기 화면
 /// - AI로 여행 사진을 예술적으로 꾸미기
@@ -34,6 +35,7 @@ class _PhotoDecoratorScreenState extends State<PhotoDecoratorScreen> {
   bool _isProcessing = false;
   Trip? _trip;
   final ImagePicker _picker = ImagePicker();
+  final ApiService _apiService = ApiService();
 
   final List<PhotoStyle> _styles = [
     PhotoStyle('watercolor', '수채화', Icons.water_drop),
@@ -499,13 +501,24 @@ class _PhotoDecoratorScreenState extends State<PhotoDecoratorScreen> {
     setState(() => _isProcessing = true);
 
     try {
-      // TODO: 실제 API 연동
-      await Future.delayed(const Duration(seconds: 2));
+      final results = <String>[];
+
+      for (final photo in _selectedPhotos) {
+        if (photo.bytes == null) continue;
+
+        final resultUrl = await _apiService.decoratePhotoBytes(
+          imageBytes: photo.bytes!,
+          fileName: photo.name,
+          style: _selectedStyle!,
+          tripId: widget.tripId,
+        );
+        results.add(resultUrl);
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('사진 꾸미기가 완료되었습니다!'),
+          SnackBar(
+            content: Text('${results.length}장의 사진 꾸미기가 완료되었습니다!'),
             backgroundColor: AppColors.success,
           ),
         );
