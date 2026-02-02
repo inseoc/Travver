@@ -51,7 +51,7 @@ class MemoriesScreen extends StatelessWidget {
             Text(
               '여행 시작일이 되면 여기에 나타나요',
               style: AppTypography.body2.copyWith(
-                color: AppColors.textTertiary,
+                color: AppColors.textSecondary,
               ),
             ),
           ],
