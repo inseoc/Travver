@@ -247,7 +247,7 @@ class TravelPlannerAgent:
                         {"role": "user", "content": user_prompt},
                     ],
                     tools=None,  # tool calling 비활성화 - 이미 장소 정보 수집됨
-                    max_tokens=4096,
+
                     response_format={"type": "json_object"},
                 )
 
