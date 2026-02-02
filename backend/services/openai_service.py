@@ -44,7 +44,8 @@ class OpenAIService:
         messages: List[Dict[str, str]],
         tools: Optional[List[Dict[str, Any]]] = None,
         tool_choice: Optional[str] = "auto",
-        # max_completion_tokens: int = 2048,
+        max_tokens: Optional[int] = None,
+        response_format: Optional[Dict[str, str]] = None,
     ) -> Dict[str, Any]:
         """
         Create a chat completion with optional function calling.
@@ -68,8 +69,13 @@ class OpenAIService:
             kwargs = {
                 "model": self.model,
                 "messages": messages,
-                # "max_completion_tokens": max_completion_tokens,
             }
+
+            if max_tokens:
+                kwargs["max_tokens"] = max_tokens
+
+            if response_format:
+                kwargs["response_format"] = response_format
 
             if tools:
                 kwargs["tools"] = tools
