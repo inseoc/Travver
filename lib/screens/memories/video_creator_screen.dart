@@ -650,7 +650,7 @@ class _VideoCreatorScreenState extends State<VideoCreatorScreen> {
     }
 
     try {
-      final XFile? file = await _picker.pickVideo();
+      final XFile? file = await _picker.pickVideo(source: ImageSource.gallery);
 
       if (file == null) return;
 
