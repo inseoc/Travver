@@ -152,15 +152,25 @@ class GeminiService:
             # 응답에서 이미지 추출
             for part in response.parts:
                 if part.inline_data is not None:
-                    result_image = part.as_image()
+                    # inline_data에서 직접 bytes 추출
+                    result_bytes = part.inline_data.data
+                    result_mime = part.inline_data.mime_type or "image/jpeg"
 
-                    # PIL Image를 bytes로 변환
-                    output_buffer = io.BytesIO()
-                    output_format = "JPEG" if image_format.lower() in ["jpeg", "jpg"] else image_format.upper()
-                    result_image.save(output_buffer, format=output_format)
+                    # 요청된 포맷과 다르면 PIL로 변환
+                    requested_mime = f"image/{image_format.lower()}"
+                    if result_mime != requested_mime:
+                        try:
+                            from PIL import Image as PILImage
+                            img = PILImage.open(io.BytesIO(result_bytes))
+                            output_buffer = io.BytesIO()
+                            pil_format = "JPEG" if image_format.lower() in ["jpeg", "jpg"] else image_format.upper()
+                            img.save(output_buffer, format=pil_format)
+                            result_bytes = output_buffer.getvalue()
+                        except Exception:
+                            pass  # 변환 실패 시 원본 bytes 사용
 
                     logger.info(f"Photo decoration completed for style: {style}")
-                    return output_buffer.getvalue()
+                    return result_bytes
 
             # 이미지가 없으면 원본 반환
             logger.warning("No image in response, returning original image")
