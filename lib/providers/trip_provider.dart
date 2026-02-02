@@ -27,6 +27,16 @@ class TripProvider extends ChangeNotifier {
   List<Trip> get completedTrips =>
       _trips.where((t) => t.status == TripStatus.completed).toList();
 
+  /// 추억 남기기 가능한 여행 (시작일 <= 오늘)
+  List<Trip> get memoryEligibleTrips {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    return _trips.where((t) {
+      final start = DateTime(t.period.start.year, t.period.start.month, t.period.start.day);
+      return !start.isAfter(today);
+    }).toList();
+  }
+
   TripProvider() {
     loadTrips();
   }
