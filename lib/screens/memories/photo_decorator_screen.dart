@@ -1,4 +1,7 @@
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../app/theme.dart';
 import '../../models/trip.dart';
@@ -7,7 +10,7 @@ import '../../providers/trip_provider.dart';
 /// 사진 꾸미기 화면
 /// - AI로 여행 사진을 예술적으로 꾸미기
 /// - Google Gemini Nano Banana Pro 사용
-/// - 선택한 여행의 갤러리 사진만 업로드 가능
+/// - 모바일: 갤러리에서 사진 선택, 웹: 파일 업로드
 class PhotoDecoratorScreen extends StatefulWidget {
   final String? tripId;
 
@@ -17,11 +20,20 @@ class PhotoDecoratorScreen extends StatefulWidget {
   State<PhotoDecoratorScreen> createState() => _PhotoDecoratorScreenState();
 }
 
+class _SelectedPhoto {
+  final String name;
+  final Uint8List? bytes;
+  final String? path;
+
+  _SelectedPhoto({required this.name, this.bytes, this.path});
+}
+
 class _PhotoDecoratorScreenState extends State<PhotoDecoratorScreen> {
-  final List<String> _selectedPhotos = [];
+  final List<_SelectedPhoto> _selectedPhotos = [];
   String? _selectedStyle;
   bool _isProcessing = false;
   Trip? _trip;
+  final ImagePicker _picker = ImagePicker();
 
   final List<PhotoStyle> _styles = [
     PhotoStyle('watercolor', '수채화', Icons.water_drop),
@@ -150,7 +162,9 @@ class _PhotoDecoratorScreenState extends State<PhotoDecoratorScreen> {
         ),
         const SizedBox(height: AppDimens.spacing8),
         Text(
-          '${_trip!.destination} 여행 기간(${_trip!.period.displayString})에 촬영된 갤러리 사진만 선택할 수 있습니다',
+          kIsWeb
+              ? '이미지 파일을 업로드하세요 (JPG, PNG / 최대 10장)'
+              : '${_trip!.destination} 여행 기간(${_trip!.period.displayString})에 촬영된 갤러리 사진만 선택할 수 있습니다',
           style: AppTypography.caption,
         ),
         const SizedBox(height: AppDimens.spacing12),
@@ -186,15 +200,15 @@ class _PhotoDecoratorScreenState extends State<PhotoDecoratorScreen> {
                 color: AppColors.accent.withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
-                Icons.add_photo_alternate_outlined,
+              child: Icon(
+                kIsWeb ? Icons.upload_file : Icons.add_photo_alternate_outlined,
                 size: 32,
                 color: AppColors.accent,
               ),
             ),
             const SizedBox(height: AppDimens.spacing12),
             Text(
-              '사진을 선택하세요',
+              kIsWeb ? '클릭하여 사진 업로드' : '사진을 선택하세요',
               style: AppTypography.body1.copyWith(color: AppColors.accent),
             ),
             const SizedBox(height: AppDimens.spacing4),
@@ -220,6 +234,7 @@ class _PhotoDecoratorScreenState extends State<PhotoDecoratorScreen> {
           ),
           itemCount: _selectedPhotos.length,
           itemBuilder: (context, index) {
+            final photo = _selectedPhotos[index];
             return Stack(
               children: [
                 Container(
@@ -227,8 +242,30 @@ class _PhotoDecoratorScreenState extends State<PhotoDecoratorScreen> {
                     color: Colors.grey.shade200,
                     borderRadius: BorderRadius.circular(4),
                   ),
-                  child: const Center(
-                    child: Icon(Icons.photo, color: Colors.grey),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: photo.bytes != null
+                        ? Image.memory(
+                            photo.bytes!,
+                            fit: BoxFit.cover,
+                            width: double.infinity,
+                            height: double.infinity,
+                          )
+                        : Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.photo, color: Colors.grey, size: 20),
+                                const SizedBox(height: 2),
+                                Text(
+                                  photo.name,
+                                  style: AppTypography.caption.copyWith(fontSize: 8),
+                                  overflow: TextOverflow.ellipsis,
+                                  maxLines: 1,
+                                ),
+                              ],
+                            ),
+                          ),
                   ),
                 ),
                 Positioned(
@@ -259,15 +296,16 @@ class _PhotoDecoratorScreenState extends State<PhotoDecoratorScreen> {
             );
           },
         ),
-        Positioned(
-          right: AppDimens.spacing8,
-          bottom: AppDimens.spacing8,
-          child: FloatingActionButton.small(
-            onPressed: _selectPhotos,
-            backgroundColor: AppColors.accent,
-            child: const Icon(Icons.add, size: 20),
+        if (_selectedPhotos.length < 10)
+          Positioned(
+            right: AppDimens.spacing8,
+            bottom: AppDimens.spacing8,
+            child: FloatingActionButton.small(
+              onPressed: _selectPhotos,
+              backgroundColor: AppColors.accent,
+              child: const Icon(Icons.add, size: 20),
+            ),
           ),
-        ),
       ],
     );
   }
@@ -413,14 +451,48 @@ class _PhotoDecoratorScreenState extends State<PhotoDecoratorScreen> {
     );
   }
 
-  void _selectPhotos() {
-    // TODO: 실제 갤러리 연동
-    // 임시로 더미 데이터 추가
-    setState(() {
-      if (_selectedPhotos.length < 10) {
-        _selectedPhotos.add('photo_${_selectedPhotos.length + 1}');
+  Future<void> _selectPhotos() async {
+    final remaining = 10 - _selectedPhotos.length;
+    if (remaining <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('최대 10장까지 선택할 수 있습니다'),
+          backgroundColor: AppColors.warning,
+        ),
+      );
+      return;
+    }
+
+    try {
+      final List<XFile> files = await _picker.pickMultiImage(
+        limit: remaining,
+      );
+
+      if (files.isEmpty) return;
+
+      final photos = <_SelectedPhoto>[];
+      for (final file in files) {
+        final bytes = await file.readAsBytes();
+        photos.add(_SelectedPhoto(
+          name: file.name,
+          bytes: bytes,
+          path: kIsWeb ? null : file.path,
+        ));
       }
-    });
+
+      setState(() {
+        _selectedPhotos.addAll(photos);
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('사진 선택 실패: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _processPhotos() async {

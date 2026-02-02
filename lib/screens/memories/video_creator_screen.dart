@@ -1,4 +1,7 @@
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../app/theme.dart';
 import '../../models/trip.dart';
@@ -7,7 +10,7 @@ import '../../providers/trip_provider.dart';
 /// 나만의 영상 화면
 /// - AI로 시네마틱 영상 생성
 /// - Google Gemini Veo 3.1 사용
-/// - 선택한 여행의 갤러리 미디어만 업로드 가능
+/// - 모바일: 갤러리에서 미디어 선택, 웹: 파일 업로드
 class VideoCreatorScreen extends StatefulWidget {
   final String? tripId;
 
@@ -17,13 +20,28 @@ class VideoCreatorScreen extends StatefulWidget {
   State<VideoCreatorScreen> createState() => _VideoCreatorScreenState();
 }
 
+class _SelectedMedia {
+  final String name;
+  final Uint8List? bytes;
+  final String? path;
+  final bool isVideo;
+
+  _SelectedMedia({
+    required this.name,
+    this.bytes,
+    this.path,
+    this.isVideo = false,
+  });
+}
+
 class _VideoCreatorScreenState extends State<VideoCreatorScreen> {
-  final List<String> _selectedMedia = [];
+  final List<_SelectedMedia> _selectedMedia = [];
   String? _selectedStyle;
   String? _selectedMusic;
   int _duration = 30;
   bool _isProcessing = false;
   Trip? _trip;
+  final ImagePicker _picker = ImagePicker();
 
   final List<VideoStyle> _styles = [
     VideoStyle('cinematic', '시네마틱 여행', Icons.movie_creation),
@@ -161,40 +179,44 @@ class _VideoCreatorScreenState extends State<VideoCreatorScreen> {
         ),
         const SizedBox(height: AppDimens.spacing8),
         Text(
-          '${_trip!.destination} 여행 기간(${_trip!.period.displayString})에 촬영된 갤러리 미디어만 선택할 수 있습니다',
+          kIsWeb
+              ? '이미지 또는 동영상 파일을 업로드하세요 (최대 20개)'
+              : '${_trip!.destination} 여행 기간(${_trip!.period.displayString})에 촬영된 갤러리 미디어만 선택할 수 있습니다',
           style: AppTypography.caption,
         ),
         const SizedBox(height: AppDimens.spacing12),
 
-        // 미디어 타입 탭
-        DefaultTabController(
-          length: 3,
-          child: Column(
+        // 미디어 선택 버튼 (웹: 사진/영상 분리)
+        if (kIsWeb) ...[
+          Row(
             children: [
-              Container(
-                height: 40,
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(AppDimens.radiusMedium),
-                ),
-                child: TabBar(
-                  labelColor: AppColors.accent,
-                  unselectedLabelColor: AppColors.textSecondary,
-                  indicator: BoxDecoration(
-                    color: AppColors.accent.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(AppDimens.radiusMedium),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _selectedMedia.length < 20 ? _selectPhotosFromPicker : null,
+                  icon: const Icon(Icons.photo_outlined, size: 18),
+                  label: const Text('사진 추가'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.info,
+                    side: BorderSide(color: AppColors.info.withOpacity(0.5)),
                   ),
-                  tabs: const [
-                    Tab(text: '전체'),
-                    Tab(text: '사진'),
-                    Tab(text: '영상'),
-                  ],
                 ),
               ),
-              const SizedBox(height: AppDimens.spacing12),
+              const SizedBox(width: AppDimens.spacing8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _selectedMedia.length < 20 ? _selectVideoFromPicker : null,
+                  icon: const Icon(Icons.videocam_outlined, size: 18),
+                  label: const Text('영상 추가'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.info,
+                    side: BorderSide(color: AppColors.info.withOpacity(0.5)),
+                  ),
+                ),
+              ),
             ],
           ),
-        ),
+          const SizedBox(height: AppDimens.spacing12),
+        ],
 
         // 미디어 그리드
         Container(
@@ -214,7 +236,7 @@ class _VideoCreatorScreenState extends State<VideoCreatorScreen> {
 
   Widget _buildEmptyMediaState() {
     return InkWell(
-      onTap: _selectMedia,
+      onTap: _selectPhotosFromPicker,
       borderRadius: BorderRadius.circular(AppDimens.radiusMedium),
       child: Center(
         child: Column(
@@ -227,15 +249,15 @@ class _VideoCreatorScreenState extends State<VideoCreatorScreen> {
                 color: AppColors.info.withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
-                Icons.add_a_photo_outlined,
+              child: Icon(
+                kIsWeb ? Icons.upload_file : Icons.add_a_photo_outlined,
                 size: 28,
                 color: AppColors.info,
               ),
             ),
             const SizedBox(height: AppDimens.spacing8),
             Text(
-              '미디어를 선택하세요',
+              kIsWeb ? '클릭하여 미디어 업로드' : '미디어를 선택하세요',
               style: AppTypography.body1.copyWith(color: AppColors.info),
             ),
           ],
@@ -256,6 +278,7 @@ class _VideoCreatorScreenState extends State<VideoCreatorScreen> {
           ),
           itemCount: _selectedMedia.length,
           itemBuilder: (context, index) {
+            final media = _selectedMedia[index];
             return Stack(
               children: [
                 Container(
@@ -263,10 +286,49 @@ class _VideoCreatorScreenState extends State<VideoCreatorScreen> {
                     color: Colors.grey.shade200,
                     borderRadius: BorderRadius.circular(4),
                   ),
-                  child: const Center(
-                    child: Icon(Icons.photo, color: Colors.grey, size: 20),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: media.bytes != null && !media.isVideo
+                        ? Image.memory(
+                            media.bytes!,
+                            fit: BoxFit.cover,
+                            width: double.infinity,
+                            height: double.infinity,
+                          )
+                        : Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  media.isVideo ? Icons.videocam : Icons.photo,
+                                  color: Colors.grey,
+                                  size: 18,
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  media.name,
+                                  style: AppTypography.caption.copyWith(fontSize: 7),
+                                  overflow: TextOverflow.ellipsis,
+                                  maxLines: 1,
+                                ),
+                              ],
+                            ),
+                          ),
                   ),
                 ),
+                if (media.isVideo)
+                  Positioned(
+                    bottom: 2,
+                    left: 2,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: Colors.black54,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                      child: const Icon(Icons.play_arrow, size: 10, color: Colors.white),
+                    ),
+                  ),
                 Positioned(
                   top: 2,
                   right: 2,
@@ -295,15 +357,16 @@ class _VideoCreatorScreenState extends State<VideoCreatorScreen> {
             );
           },
         ),
-        Positioned(
-          right: AppDimens.spacing8,
-          bottom: AppDimens.spacing8,
-          child: FloatingActionButton.small(
-            onPressed: _selectMedia,
-            backgroundColor: AppColors.info,
-            child: const Icon(Icons.add, size: 20),
+        if (_selectedMedia.length < 20 && !kIsWeb)
+          Positioned(
+            right: AppDimens.spacing8,
+            bottom: AppDimens.spacing8,
+            child: FloatingActionButton.small(
+              onPressed: _selectPhotosFromPicker,
+              backgroundColor: AppColors.info,
+              child: const Icon(Icons.add, size: 20),
+            ),
           ),
-        ),
       ],
     );
   }
@@ -529,13 +592,88 @@ class _VideoCreatorScreenState extends State<VideoCreatorScreen> {
     );
   }
 
-  void _selectMedia() {
-    // TODO: 실제 갤러리 연동
-    setState(() {
-      if (_selectedMedia.length < 20) {
-        _selectedMedia.add('media_${_selectedMedia.length + 1}');
+  Future<void> _selectPhotosFromPicker() async {
+    final remaining = 20 - _selectedMedia.length;
+    if (remaining <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('최대 20개까지 선택할 수 있습니다'),
+          backgroundColor: AppColors.warning,
+        ),
+      );
+      return;
+    }
+
+    try {
+      final List<XFile> files = await _picker.pickMultiImage(
+        limit: remaining,
+      );
+
+      if (files.isEmpty) return;
+
+      final media = <_SelectedMedia>[];
+      for (final file in files) {
+        final bytes = await file.readAsBytes();
+        media.add(_SelectedMedia(
+          name: file.name,
+          bytes: bytes,
+          path: kIsWeb ? null : file.path,
+          isVideo: false,
+        ));
       }
-    });
+
+      setState(() {
+        _selectedMedia.addAll(media);
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('사진 선택 실패: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _selectVideoFromPicker() async {
+    final remaining = 20 - _selectedMedia.length;
+    if (remaining <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('최대 20개까지 선택할 수 있습니다'),
+          backgroundColor: AppColors.warning,
+        ),
+      );
+      return;
+    }
+
+    try {
+      final XFile? file = await _picker.pickVideo();
+
+      if (file == null) return;
+
+      final bytes = await file.readAsBytes();
+
+      setState(() {
+        _selectedMedia.add(_SelectedMedia(
+          name: file.name,
+          bytes: bytes,
+          path: kIsWeb ? null : file.path,
+          isVideo: true,
+        ));
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('영상 선택 실패: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _createVideo() async {
