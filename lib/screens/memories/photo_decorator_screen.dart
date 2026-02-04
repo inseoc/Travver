@@ -10,9 +10,6 @@ import '../../providers/trip_provider.dart';
 import '../../services/api_service.dart';
 
 /// 사진 꾸미기 화면
-/// - AI로 여행 사진을 예술적으로 꾸미기
-/// - Google Gemini Nano Banana Pro 사용
-/// - 모바일: 갤러리에서 사진 선택, 웹: 파일 업로드
 class PhotoDecoratorScreen extends StatefulWidget {
   final String? tripId;
 
@@ -30,14 +27,28 @@ class _SelectedPhoto {
   _SelectedPhoto({required this.name, this.bytes, this.path});
 }
 
+/// 개별 사진의 꾸미기 상태
+class _PhotoItem {
+  final _SelectedPhoto original;
+  String? selectedStyle;
+  Uint8List? decoratedBytes;
+  String? decoratedBase64;
+  String? decoratedMimeType;
+  bool isProcessing;
+  String? savedPhotoId;
+
+  _PhotoItem({required this.original})
+      : isProcessing = false;
+
+  bool get isDecorated => decoratedBytes != null;
+  bool get isSaved => savedPhotoId != null;
+}
+
 class _PhotoDecoratorScreenState extends State<PhotoDecoratorScreen> {
-  final List<_SelectedPhoto> _selectedPhotos = [];
-  String? _selectedStyle;
-  bool _isProcessing = false;
+  final List<_PhotoItem> _photoItems = [];
   Trip? _trip;
   final ImagePicker _picker = ImagePicker();
   final ApiService _apiService = ApiService();
-  final List<Uint8List> _decoratedImages = [];
 
   final List<PhotoStyle> _styles = [
     PhotoStyle('watercolor', '수채화', Icons.water_drop),
@@ -63,7 +74,6 @@ class _PhotoDecoratorScreenState extends State<PhotoDecoratorScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // 여행이 선택되지 않은 경우
     if (widget.tripId == null || _trip == null) {
       return Scaffold(
         backgroundColor: AppColors.background,
@@ -75,11 +85,13 @@ class _PhotoDecoratorScreenState extends State<PhotoDecoratorScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.photo_library_outlined, size: 64, color: Colors.grey.shade400),
+              Icon(Icons.photo_library_outlined,
+                  size: 64, color: Colors.grey.shade400),
               const SizedBox(height: AppDimens.spacing16),
               Text(
                 '여행을 먼저 선택해주세요',
-                style: AppTypography.body1.copyWith(color: AppColors.textSecondary),
+                style: AppTypography.body1
+                    .copyWith(color: AppColors.textSecondary),
               ),
             ],
           ),
@@ -95,129 +107,85 @@ class _PhotoDecoratorScreenState extends State<PhotoDecoratorScreen> {
       ),
       body: Column(
         children: [
+          // 여행 정보 헤더
+          _buildTripHeader(),
+          // 사진 목록
           Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(AppDimens.spacing20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // 사진 선택 영역
-                  _buildPhotoSelector(),
-                  const SizedBox(height: AppDimens.spacing24),
+            child: _photoItems.isEmpty
+                ? _buildEmptyState()
+                : _buildPhotoList(),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _selectPhotos,
+        backgroundColor: AppColors.accent,
+        icon: const Icon(Icons.add_photo_alternate),
+        label: const Text('사진 추가'),
+      ),
+    );
+  }
 
-                  // 스타일 선택
-                  _buildStyleSelector(),
-                  const SizedBox(height: AppDimens.spacing24),
-
-                  // 미리보기
-                  if (_selectedPhotos.isNotEmpty) _buildPreview(),
-                ],
+  Widget _buildTripHeader() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppDimens.spacing20,
+        vertical: AppDimens.spacing12,
+      ),
+      color: AppColors.accent.withOpacity(0.05),
+      child: Row(
+        children: [
+          const Icon(Icons.flight, size: 18, color: AppColors.accent),
+          const SizedBox(width: AppDimens.spacing8),
+          Expanded(
+            child: Text(
+              '${_trip!.destination} (${_trip!.period.displayString})',
+              style: AppTypography.body2.copyWith(
+                color: AppColors.accent,
+                fontWeight: FontWeight.w500,
               ),
             ),
           ),
-
-          // 하단 버튼
-          _buildBottomButton(),
+          Text(
+            '${_photoItems.length}/10',
+            style: AppTypography.caption.copyWith(color: AppColors.accent),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildPhotoSelector() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // 선택된 여행 정보 표시
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(AppDimens.spacing12),
-          margin: const EdgeInsets.only(bottom: AppDimens.spacing16),
-          decoration: BoxDecoration(
-            color: AppColors.accent.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(AppDimens.radiusMedium),
-          ),
-          child: Row(
-            children: [
-              const Icon(Icons.flight, size: 20, color: AppColors.accent),
-              const SizedBox(width: AppDimens.spacing8),
-              Expanded(
-                child: Text(
-                  '${_trip!.destination} (${_trip!.period.displayString})',
-                  style: AppTypography.body2.copyWith(
-                    color: AppColors.accent,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text('사진 선택', style: AppTypography.subhead2),
-            Text(
-              '${_selectedPhotos.length}/10',
-              style: AppTypography.body2.copyWith(
-                color: AppColors.textSecondary,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: AppDimens.spacing8),
-        Text(
-          kIsWeb
-              ? '이미지 파일을 업로드하세요 (JPG, PNG / 최대 10장)'
-              : '${_trip!.destination} 여행 기간(${_trip!.period.displayString})에 촬영된 갤러리 사진만 선택할 수 있습니다',
-          style: AppTypography.caption,
-        ),
-        const SizedBox(height: AppDimens.spacing12),
-
-        // 갤러리 그리드
-        Container(
-          height: 200,
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(AppDimens.radiusMedium),
-            border: Border.all(color: Colors.grey.shade300),
-          ),
-          child: _selectedPhotos.isEmpty
-              ? _buildEmptyPhotoState()
-              : _buildPhotoGrid(),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildEmptyPhotoState() {
-    return InkWell(
-      onTap: _selectPhotos,
-      borderRadius: BorderRadius.circular(AppDimens.radiusMedium),
-      child: Center(
+  Widget _buildEmptyState() {
+    return Center(
+      child: GestureDetector(
+        onTap: _selectPhotos,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              width: 64,
-              height: 64,
+              width: 80,
+              height: 80,
               decoration: BoxDecoration(
                 color: AppColors.accent.withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
               child: Icon(
-                kIsWeb ? Icons.upload_file : Icons.add_photo_alternate_outlined,
-                size: 32,
+                kIsWeb
+                    ? Icons.upload_file
+                    : Icons.add_photo_alternate_outlined,
+                size: 40,
                 color: AppColors.accent,
               ),
             ),
-            const SizedBox(height: AppDimens.spacing12),
+            const SizedBox(height: AppDimens.spacing16),
             Text(
-              kIsWeb ? '클릭하여 사진 업로드' : '사진을 선택하세요',
+              '사진을 추가해서 AI로 꾸며보세요',
               style: AppTypography.body1.copyWith(color: AppColors.accent),
             ),
             const SizedBox(height: AppDimens.spacing4),
             Text(
-              '최대 10장까지 선택 가능',
+              '최대 10장까지 추가 가능',
               style: AppTypography.caption,
             ),
           ],
@@ -226,264 +194,337 @@ class _PhotoDecoratorScreenState extends State<PhotoDecoratorScreen> {
     );
   }
 
-  Widget _buildPhotoGrid() {
-    return Stack(
-      children: [
-        GridView.builder(
-          padding: const EdgeInsets.all(AppDimens.spacing8),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 4,
-            mainAxisSpacing: 4,
-            crossAxisSpacing: 4,
-          ),
-          itemCount: _selectedPhotos.length,
-          itemBuilder: (context, index) {
-            final photo = _selectedPhotos[index];
-            return Stack(
-              children: [
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade200,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: photo.bytes != null
-                        ? Image.memory(
-                            photo.bytes!,
-                            fit: BoxFit.cover,
-                            width: double.infinity,
-                            height: double.infinity,
-                          )
-                        : Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(Icons.photo, color: Colors.grey, size: 20),
-                                const SizedBox(height: 2),
-                                Text(
-                                  photo.name,
-                                  style: AppTypography.caption.copyWith(fontSize: 8),
-                                  overflow: TextOverflow.ellipsis,
-                                  maxLines: 1,
-                                ),
-                              ],
-                            ),
-                          ),
-                  ),
-                ),
-                Positioned(
-                  top: 2,
-                  right: 2,
-                  child: GestureDetector(
-                    onTap: () {
-                      setState(() {
-                        _selectedPhotos.removeAt(index);
-                        _decoratedImages.clear();
-                      });
-                    },
-                    child: Container(
-                      width: 20,
-                      height: 20,
-                      decoration: const BoxDecoration(
-                        color: Colors.black54,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.close,
-                        size: 14,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            );
-          },
-        ),
-        if (_selectedPhotos.length < 10)
-          Positioned(
-            right: AppDimens.spacing8,
-            bottom: AppDimens.spacing8,
-            child: FloatingActionButton.small(
-              onPressed: _selectPhotos,
-              backgroundColor: AppColors.accent,
-              child: const Icon(Icons.add, size: 20),
-            ),
-          ),
-      ],
+  Widget _buildPhotoList() {
+    return ListView.separated(
+      padding: const EdgeInsets.all(AppDimens.spacing16),
+      itemCount: _photoItems.length,
+      separatorBuilder: (_, __) => const SizedBox(height: AppDimens.spacing16),
+      itemBuilder: (context, index) => _buildPhotoCard(_photoItems[index], index),
     );
   }
 
-  Widget _buildStyleSelector() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('스타일 선택', style: AppTypography.subhead2),
-        const SizedBox(height: AppDimens.spacing12),
-        SizedBox(
-          height: 100,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: _styles.length,
-            separatorBuilder: (_, __) =>
-                const SizedBox(width: AppDimens.spacing12),
-            itemBuilder: (context, index) {
-              final style = _styles[index];
-              final isSelected = _selectedStyle == style.id;
-              return GestureDetector(
-                onTap: () => setState(() => _selectedStyle = style.id),
-                child: AnimatedContainer(
-                  duration: AppTheme.animationDuration,
-                  width: 80,
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? AppColors.accent.withOpacity(0.1)
-                        : AppColors.surface,
-                    borderRadius:
-                        BorderRadius.circular(AppDimens.radiusMedium),
-                    border: Border.all(
-                      color: isSelected ? AppColors.accent : Colors.grey.shade300,
-                      width: isSelected ? 2 : 1,
-                    ),
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        style.icon,
-                        color: isSelected
-                            ? AppColors.accent
-                            : AppColors.textSecondary,
-                      ),
-                      const SizedBox(height: AppDimens.spacing8),
-                      Text(
-                        style.label,
-                        style: AppTypography.caption.copyWith(
-                          color: isSelected
-                              ? AppColors.accent
-                              : AppColors.textPrimary,
-                          fontWeight:
-                              isSelected ? FontWeight.w600 : FontWeight.w400,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildPreview() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('미리보기', style: AppTypography.subhead2),
-        const SizedBox(height: AppDimens.spacing12),
-        if (_decoratedImages.isEmpty)
-          Container(
-            width: double.infinity,
-            height: 200,
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(AppDimens.radiusMedium),
-              border: Border.all(color: Colors.grey.shade300),
-            ),
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.auto_awesome,
-                    size: 48,
-                    color: Colors.grey.shade300,
-                  ),
-                  const SizedBox(height: AppDimens.spacing8),
-                  Text(
-                    '스타일 적용 후 미리보기가 표시됩니다',
-                    style: AppTypography.body2.copyWith(
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          )
-        else
-          SizedBox(
-            height: 250,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: _decoratedImages.length,
-              separatorBuilder: (_, __) =>
-                  const SizedBox(width: AppDimens.spacing8),
-              itemBuilder: (context, index) {
-                return ClipRRect(
-                  borderRadius:
-                      BorderRadius.circular(AppDimens.radiusMedium),
-                  child: Image.memory(
-                    _decoratedImages[index],
-                    height: 250,
-                    fit: BoxFit.contain,
-                  ),
-                );
-              },
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildBottomButton() {
-    final canProcess =
-        _selectedPhotos.isNotEmpty && _selectedStyle != null && !_isProcessing;
-
+  Widget _buildPhotoCard(_PhotoItem item, int index) {
     return Container(
-      padding: const EdgeInsets.all(AppDimens.spacing20),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            offset: const Offset(0, -2),
-            blurRadius: 8,
+        borderRadius: BorderRadius.circular(AppDimens.cardRadius),
+        boxShadow: AppShadows.card,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 이미지 영역: 원본 / 꾸며진 결과 비교
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(
+              top: Radius.circular(AppDimens.cardRadius),
+            ),
+            child: SizedBox(
+              height: 220,
+              child: item.isDecorated
+                  ? _buildBeforeAfter(item)
+                  : _buildOriginalOnly(item),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(AppDimens.spacing12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 파일명 & 상태
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        item.original.name,
+                        style: AppTypography.caption,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (item.isSaved)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppColors.success.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          '저장됨',
+                          style: AppTypography.caption.copyWith(
+                            color: AppColors.success,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    if (item.isDecorated && !item.isSaved)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppColors.accent.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          '꾸미기 완료',
+                          style: AppTypography.caption.copyWith(
+                            color: AppColors.accent,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: AppDimens.spacing8),
+                // 스타일 선택
+                SizedBox(
+                  height: 36,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _styles.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 6),
+                    itemBuilder: (context, i) {
+                      final style = _styles[i];
+                      final isSelected = item.selectedStyle == style.id;
+                      return GestureDetector(
+                        onTap: item.isProcessing
+                            ? null
+                            : () {
+                                setState(
+                                    () => item.selectedStyle = style.id);
+                              },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? AppColors.accent.withOpacity(0.1)
+                                : Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(
+                              color: isSelected
+                                  ? AppColors.accent
+                                  : Colors.grey.shade300,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(style.icon,
+                                  size: 14,
+                                  color: isSelected
+                                      ? AppColors.accent
+                                      : AppColors.textSecondary),
+                              const SizedBox(width: 4),
+                              Text(
+                                style.label,
+                                style: AppTypography.caption.copyWith(
+                                  color: isSelected
+                                      ? AppColors.accent
+                                      : AppColors.textPrimary,
+                                  fontWeight: isSelected
+                                      ? FontWeight.w600
+                                      : FontWeight.w400,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: AppDimens.spacing12),
+                // 액션 버튼들
+                Row(
+                  children: [
+                    // AI 꾸미기 버튼
+                    Expanded(
+                      child: SizedBox(
+                        height: 40,
+                        child: ElevatedButton.icon(
+                          onPressed: (item.selectedStyle != null &&
+                                  !item.isProcessing)
+                              ? () => _decoratePhoto(item)
+                              : null,
+                          icon: item.isProcessing
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : Icon(Icons.auto_awesome, size: 16),
+                          label: Text(
+                            item.isProcessing
+                                ? '처리 중...'
+                                : item.isDecorated
+                                    ? '다시 꾸미기'
+                                    : 'AI 꾸미기',
+                            style: const TextStyle(fontSize: 13),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (item.isDecorated && !item.isSaved) ...[
+                      const SizedBox(width: 8),
+                      // 저장 버튼
+                      SizedBox(
+                        height: 40,
+                        child: ElevatedButton.icon(
+                          onPressed: () => _savePhoto(item),
+                          icon: const Icon(Icons.save_alt, size: 16),
+                          label: const Text('저장',
+                              style: TextStyle(fontSize: 13)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.success,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(width: 8),
+                    // 삭제 버튼
+                    SizedBox(
+                      height: 40,
+                      width: 40,
+                      child: IconButton(
+                        onPressed: item.isProcessing
+                            ? null
+                            : () => _removePhoto(index),
+                        icon: const Icon(Icons.close, size: 18),
+                        style: IconButton.styleFrom(
+                          backgroundColor: Colors.grey.shade100,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ],
       ),
-      child: SafeArea(
-        top: false,
-        child: SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            onPressed: canProcess ? _processPhotos : null,
-            icon: _isProcessing
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
-                  )
-                : const Icon(Icons.auto_awesome),
-            label: Text(_isProcessing ? '처리 중...' : 'AI로 꾸미기 시작'),
+    );
+  }
+
+  Widget _buildOriginalOnly(_PhotoItem item) {
+    if (item.original.bytes != null) {
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.memory(item.original.bytes!, fit: BoxFit.cover),
+          if (item.isProcessing)
+            Container(
+              color: Colors.black38,
+              child: const Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(color: Colors.white),
+                    SizedBox(height: 12),
+                    Text('AI가 꾸미는 중...',
+                        style: TextStyle(color: Colors.white, fontSize: 14)),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      );
+    }
+    return Container(
+      color: Colors.grey.shade200,
+      child: const Center(child: Icon(Icons.photo, size: 48, color: Colors.grey)),
+    );
+  }
+
+  Widget _buildBeforeAfter(_PhotoItem item) {
+    return Row(
+      children: [
+        // 원본
+        Expanded(
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              if (item.original.bytes != null)
+                Image.memory(item.original.bytes!, fit: BoxFit.cover)
+              else
+                Container(color: Colors.grey.shade200),
+              Positioned(
+                left: 6,
+                top: 6,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const Text('BEFORE',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
           ),
         ),
-      ),
+        Container(width: 2, color: AppColors.surface),
+        // 꾸며진 결과
+        Expanded(
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Image.memory(item.decoratedBytes!, fit: BoxFit.cover),
+              Positioned(
+                right: 6,
+                top: 6,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.accent,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const Text('AFTER',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold)),
+                ),
+              ),
+              if (item.isProcessing)
+                Container(
+                  color: Colors.black38,
+                  child: const Center(
+                    child: CircularProgressIndicator(color: Colors.white),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
   Future<void> _selectPhotos() async {
-    final remaining = 10 - _selectedPhotos.length;
+    final remaining = 10 - _photoItems.length;
     if (remaining <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('최대 10장까지 선택할 수 있습니다'),
+          content: Text('최대 10장까지 추가할 수 있습니다'),
           backgroundColor: AppColors.warning,
         ),
       );
@@ -491,25 +532,23 @@ class _PhotoDecoratorScreenState extends State<PhotoDecoratorScreen> {
     }
 
     try {
-      final List<XFile> files = await _picker.pickMultiImage(
-        limit: remaining,
-      );
-
+      final List<XFile> files = await _picker.pickMultiImage(limit: remaining);
       if (files.isEmpty) return;
 
-      final photos = <_SelectedPhoto>[];
+      final items = <_PhotoItem>[];
       for (final file in files) {
         final bytes = await file.readAsBytes();
-        photos.add(_SelectedPhoto(
-          name: file.name,
-          bytes: bytes,
-          path: kIsWeb ? null : file.path,
+        items.add(_PhotoItem(
+          original: _SelectedPhoto(
+            name: file.name,
+            bytes: bytes,
+            path: kIsWeb ? null : file.path,
+          ),
         ));
       }
 
       setState(() {
-        _selectedPhotos.addAll(photos);
-        _decoratedImages.clear();
+        _photoItems.addAll(items);
       });
     } catch (e) {
       if (mounted) {
@@ -523,38 +562,66 @@ class _PhotoDecoratorScreenState extends State<PhotoDecoratorScreen> {
     }
   }
 
-  Future<void> _processPhotos() async {
-    setState(() {
-      _isProcessing = true;
-      _decoratedImages.clear();
-    });
+  Future<void> _decoratePhoto(_PhotoItem item) async {
+    if (item.original.bytes == null || item.selectedStyle == null) return;
+
+    setState(() => item.isProcessing = true);
 
     try {
-      final decoratedImages = <Uint8List>[];
+      final result = await _apiService.decoratePhotoBytes(
+        imageBytes: item.original.bytes!,
+        fileName: item.original.name,
+        style: item.selectedStyle!,
+        tripId: widget.tripId,
+      );
 
-      for (final photo in _selectedPhotos) {
-        if (photo.bytes == null) continue;
-
-        final result = await _apiService.decoratePhotoBytes(
-          imageBytes: photo.bytes!,
-          fileName: photo.name,
-          style: _selectedStyle!,
-          tripId: widget.tripId,
+      final base64Data = result['result_image_base64'] as String?;
+      if (base64Data != null && base64Data.isNotEmpty) {
+        setState(() {
+          item.decoratedBytes = base64Decode(base64Data);
+          item.decoratedBase64 = base64Data;
+          item.decoratedMimeType =
+              result['result_mime_type'] as String? ?? 'image/jpeg';
+          item.savedPhotoId = null; // 새로 꾸미면 저장 상태 초기화
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('꾸미기 실패: $e'),
+            backgroundColor: AppColors.error,
+          ),
         );
+      }
+    } finally {
+      if (mounted) setState(() => item.isProcessing = false);
+    }
+  }
 
-        final base64Data = result['result_image_base64'] as String?;
-        if (base64Data != null && base64Data.isNotEmpty) {
-          decoratedImages.add(base64Decode(base64Data));
-        }
+  Future<void> _savePhoto(_PhotoItem item) async {
+    if (item.decoratedBase64 == null) return;
+
+    try {
+      final result = await _apiService.saveDecoratedPhoto(
+        tripId: widget.tripId!,
+        originalFilename: item.original.name,
+        style: item.selectedStyle!,
+        resultImageBase64: item.decoratedBase64!,
+        resultMimeType: item.decoratedMimeType ?? 'image/jpeg',
+      );
+
+      final photoData = result['photo'] as Map<String, dynamic>?;
+      if (photoData != null) {
+        setState(() {
+          item.savedPhotoId = photoData['id'] as String?;
+        });
       }
 
       if (mounted) {
-        setState(() {
-          _decoratedImages.addAll(decoratedImages);
-        });
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${decoratedImages.length}장의 사진 꾸미기가 완료되었습니다!'),
+          const SnackBar(
+            content: Text('사진이 저장되었습니다!'),
             backgroundColor: AppColors.success,
           ),
         );
@@ -563,16 +630,18 @@ class _PhotoDecoratorScreenState extends State<PhotoDecoratorScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('처리 실패: $e'),
+            content: Text('저장 실패: $e'),
             backgroundColor: AppColors.error,
           ),
         );
       }
-    } finally {
-      if (mounted) {
-        setState(() => _isProcessing = false);
-      }
     }
+  }
+
+  void _removePhoto(int index) {
+    setState(() {
+      _photoItems.removeAt(index);
+    });
   }
 }
 

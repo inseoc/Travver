@@ -146,3 +146,14 @@ class Trip(BaseModel):
                 "status": "upcoming"
             }
         }
+
+
+class DecoratedPhoto(BaseModel):
+    """꾸며진 사진."""
+    id: str = Field(..., description="사진 ID")
+    trip_id: str = Field(..., description="연결된 여행 ID")
+    original_filename: str = Field(..., description="원본 파일명")
+    style: str = Field(..., description="적용된 스타일")
+    result_image_base64: str = Field(..., description="결과 이미지 Base64")
+    result_mime_type: str = Field(default="image/jpeg", description="결과 MIME 타입")
+    created_at: datetime = Field(default_factory=datetime.now, description="생성 시간")

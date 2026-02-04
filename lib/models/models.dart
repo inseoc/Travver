@@ -4,3 +4,4 @@ export 'daily_plan.dart';
 export 'schedule.dart';
 export 'location.dart';
 export 'chat_message.dart';
+export 'decorated_photo.dart';
