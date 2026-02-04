@@ -214,6 +214,18 @@ class MemoriesScreen extends StatelessWidget {
               const SizedBox(height: AppDimens.spacing12),
               _buildActionTile(
                 context: context,
+                icon: Icons.photo_library_outlined,
+                title: '추억 갤러리',
+                description: '저장된 꾸며진 사진들을 감상하세요',
+                color: AppColors.success,
+                onTap: () {
+                  Navigator.pop(context);
+                  context.push(AppRoutes.tripMemories, extra: trip.id);
+                },
+              ),
+              const SizedBox(height: AppDimens.spacing12),
+              _buildActionTile(
+                context: context,
                 icon: Icons.videocam_outlined,
                 title: '나만의 영상',
                 description: 'AI로 시네마틱 여행 영상을 만들어보세요',

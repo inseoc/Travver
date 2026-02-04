@@ -302,6 +302,53 @@ class ApiService {
     }
   }
 
+  /// 꾸며진 사진 저장
+  Future<Map<String, dynamic>> saveDecoratedPhoto({
+    required String tripId,
+    required String originalFilename,
+    required String style,
+    required String resultImageBase64,
+    String resultMimeType = 'image/jpeg',
+  }) async {
+    try {
+      final formData = FormData.fromMap({
+        'trip_id': tripId,
+        'original_filename': originalFilename,
+        'style': style,
+        'result_image_base64': resultImageBase64,
+        'result_mime_type': resultMimeType,
+      });
+
+      final response = await _dio.post(
+        '/v1/memories/photos/save',
+        data: formData,
+      );
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  /// 여행별 꾸며진 사진 목록 조회
+  Future<List<Map<String, dynamic>>> getTripPhotos(String tripId) async {
+    try {
+      final response = await _dio.get('/v1/memories/photos/$tripId');
+      final photos = response.data['photos'] as List<dynamic>? ?? [];
+      return photos.cast<Map<String, dynamic>>();
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  /// 꾸며진 사진 삭제
+  Future<void> deleteDecoratedPhoto(String photoId) async {
+    try {
+      await _dio.delete('/v1/memories/photos/$photoId/delete');
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   /// 에러 처리
   String _handleError(DioException e) {
     switch (e.type) {

@@ -1,16 +1,27 @@
 """Memories API routes - 사진 꾸미기 / 영상 생성."""
 
 import base64
-from typing import List
+import uuid
+from datetime import datetime
+from typing import Dict, List
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form, status
 
 from core.logger import logger
 from core.exceptions import GeminiException, RateLimitException
 from models.requests import PhotoDecorateRequest, VideoCreateRequest
-from models.responses import PhotoDecorateResponse, VideoCreateResponse, ErrorResponse
+from models.responses import (
+    PhotoDecorateResponse,
+    VideoCreateResponse,
+    ErrorResponse,
+    DecoratedPhotoListResponse,
+)
+from models.travel import DecoratedPhoto
 from services.gemini_service import gemini_service
 
 router = APIRouter(prefix="/memories", tags=["Memories"])
+
+# In-memory storage for decorated photos (production에서는 DB 사용)
+_photos_db: Dict[str, DecoratedPhoto] = {}
 
 
 @router.post(
@@ -111,6 +122,76 @@ async def decorate_photo(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={"error": "INTERNAL_ERROR", "message": "서버 오류가 발생했습니다."},
         )
+
+
+# ──────────────────────────────────────────────
+# 꾸며진 사진 CRUD
+# ──────────────────────────────────────────────
+
+
+@router.post(
+    "/photos/save",
+    summary="꾸며진 사진 저장",
+    description="AI로 꾸며진 사진을 여행에 연결하여 저장합니다.",
+)
+async def save_decorated_photo(
+    trip_id: str = Form(..., description="여행 ID"),
+    original_filename: str = Form(..., description="원본 파일명"),
+    style: str = Form(..., description="적용된 스타일"),
+    result_image_base64: str = Form(..., description="결과 이미지 Base64"),
+    result_mime_type: str = Form("image/jpeg", description="결과 MIME 타입"),
+):
+    """꾸며진 사진을 저장합니다."""
+    photo_id = f"photo_{uuid.uuid4().hex[:12]}"
+    photo = DecoratedPhoto(
+        id=photo_id,
+        trip_id=trip_id,
+        original_filename=original_filename,
+        style=style,
+        result_image_base64=result_image_base64,
+        result_mime_type=result_mime_type,
+        created_at=datetime.now(),
+    )
+    _photos_db[photo_id] = photo
+    logger.info(f"Saved decorated photo: {photo_id} for trip {trip_id}")
+    return {"success": True, "photo": photo.model_dump()}
+
+
+@router.get(
+    "/photos/{trip_id}",
+    response_model=DecoratedPhotoListResponse,
+    summary="여행별 꾸며진 사진 목록",
+)
+async def get_trip_photos(trip_id: str):
+    """특정 여행에 연결된 꾸며진 사진 목록을 조회합니다."""
+    photos = [p for p in _photos_db.values() if p.trip_id == trip_id]
+    photos.sort(key=lambda p: p.created_at, reverse=True)
+    return DecoratedPhotoListResponse(
+        success=True,
+        photos=photos,
+        count=len(photos),
+    )
+
+
+@router.delete(
+    "/photos/{photo_id}/delete",
+    summary="꾸며진 사진 삭제",
+)
+async def delete_decorated_photo(photo_id: str):
+    """꾸며진 사진을 삭제합니다."""
+    if photo_id not in _photos_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "NOT_FOUND", "message": "사진을 찾을 수 없습니다."},
+        )
+    del _photos_db[photo_id]
+    logger.info(f"Deleted decorated photo: {photo_id}")
+    return {"success": True}
+
+
+# ──────────────────────────────────────────────
+# 영상 생성
+# ──────────────────────────────────────────────
 
 
 @router.post(
@@ -215,7 +296,6 @@ async def create_video(
         )
 
         # 실제로는 S3 등에 업로드하고 URL 반환
-        import uuid
         video_id = uuid.uuid4().hex[:12]
 
         return VideoCreateResponse(

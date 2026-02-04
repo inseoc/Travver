@@ -1,9 +1,9 @@
 """API response models."""
 
-from typing import Any, Optional
+from typing import Any, List, Optional
 from pydantic import BaseModel, Field
 
-from .travel import Trip
+from .travel import Trip, DecoratedPhoto
 
 
 class ErrorResponse(BaseModel):
@@ -122,3 +122,10 @@ class VideoCreateResponse(BaseModel):
                 "aspect_ratio": "16:9",
             }
         }
+
+
+class DecoratedPhotoListResponse(BaseModel):
+    """꾸며진 사진 목록 응답."""
+    success: bool = Field(default=True)
+    photos: List[DecoratedPhoto] = Field(default_factory=list)
+    count: int = Field(default=0)

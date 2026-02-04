@@ -10,6 +10,7 @@ import '../screens/my_trips/my_trips_screen.dart';
 import '../screens/memories/memories_screen.dart';
 import '../screens/memories/photo_decorator_screen.dart';
 import '../screens/memories/video_creator_screen.dart';
+import '../screens/memories/trip_memories_screen.dart';
 
 /// 앱 라우트 경로 상수
 class AppRoutes {
@@ -26,6 +27,7 @@ class AppRoutes {
   static const String memories = '/memories';
   static const String photoDecorator = '/memories/photo';
   static const String videoCreator = '/memories/video';
+  static const String tripMemories = '/memories/gallery';
 }
 
 /// GoRouter 설정
@@ -126,6 +128,16 @@ class AppRouter {
         builder: (context, state) {
           final tripId = state.extra as String?;
           return VideoCreatorScreen(tripId: tripId);
+        },
+      ),
+
+      // 여행 추억 갤러리
+      GoRoute(
+        path: AppRoutes.tripMemories,
+        name: 'tripMemories',
+        builder: (context, state) {
+          final tripId = state.extra as String;
+          return TripMemoriesScreen(tripId: tripId);
         },
       ),
     ],
