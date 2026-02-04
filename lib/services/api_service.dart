@@ -174,7 +174,8 @@ class ApiService {
   }
 
   /// 사진 꾸미기 API (bytes 기반 - 웹 지원)
-  Future<String> decoratePhotoBytes({
+  /// 반환값: {'result_url': String, 'result_image_base64': String?, 'result_mime_type': String?}
+  Future<Map<String, dynamic>> decoratePhotoBytes({
     required Uint8List imageBytes,
     required String fileName,
     required String style,
@@ -203,7 +204,11 @@ class ApiService {
         ),
       );
 
-      return response.data['result_url'] as String;
+      return {
+        'result_url': response.data['result_url'] as String,
+        'result_image_base64': response.data['result_image_base64'] as String?,
+        'result_mime_type': response.data['result_mime_type'] as String?,
+      };
     } on DioException catch (e) {
       throw _handleError(e);
     }

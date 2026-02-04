@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
@@ -36,6 +37,7 @@ class _PhotoDecoratorScreenState extends State<PhotoDecoratorScreen> {
   Trip? _trip;
   final ImagePicker _picker = ImagePicker();
   final ApiService _apiService = ApiService();
+  final List<Uint8List> _decoratedImages = [];
 
   final List<PhotoStyle> _styles = [
     PhotoStyle('watercolor', '수채화', Icons.water_drop),
@@ -277,6 +279,7 @@ class _PhotoDecoratorScreenState extends State<PhotoDecoratorScreen> {
                     onTap: () {
                       setState(() {
                         _selectedPhotos.removeAt(index);
+                        _decoratedImages.clear();
                       });
                     },
                     child: Container(
@@ -382,34 +385,56 @@ class _PhotoDecoratorScreenState extends State<PhotoDecoratorScreen> {
       children: [
         Text('미리보기', style: AppTypography.subhead2),
         const SizedBox(height: AppDimens.spacing12),
-        Container(
-          width: double.infinity,
-          height: 200,
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(AppDimens.radiusMedium),
-            border: Border.all(color: Colors.grey.shade300),
-          ),
-          child: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.auto_awesome,
-                  size: 48,
-                  color: Colors.grey.shade300,
-                ),
-                const SizedBox(height: AppDimens.spacing8),
-                Text(
-                  '스타일 적용 후 미리보기가 표시됩니다',
-                  style: AppTypography.body2.copyWith(
-                    color: AppColors.textSecondary,
+        if (_decoratedImages.isEmpty)
+          Container(
+            width: double.infinity,
+            height: 200,
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(AppDimens.radiusMedium),
+              border: Border.all(color: Colors.grey.shade300),
+            ),
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.auto_awesome,
+                    size: 48,
+                    color: Colors.grey.shade300,
                   ),
-                ),
-              ],
+                  const SizedBox(height: AppDimens.spacing8),
+                  Text(
+                    '스타일 적용 후 미리보기가 표시됩니다',
+                    style: AppTypography.body2.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          )
+        else
+          SizedBox(
+            height: 250,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: _decoratedImages.length,
+              separatorBuilder: (_, __) =>
+                  const SizedBox(width: AppDimens.spacing8),
+              itemBuilder: (context, index) {
+                return ClipRRect(
+                  borderRadius:
+                      BorderRadius.circular(AppDimens.radiusMedium),
+                  child: Image.memory(
+                    _decoratedImages[index],
+                    height: 250,
+                    fit: BoxFit.contain,
+                  ),
+                );
+              },
             ),
           ),
-        ),
       ],
     );
   }
@@ -484,6 +509,7 @@ class _PhotoDecoratorScreenState extends State<PhotoDecoratorScreen> {
 
       setState(() {
         _selectedPhotos.addAll(photos);
+        _decoratedImages.clear();
       });
     } catch (e) {
       if (mounted) {
@@ -498,27 +524,37 @@ class _PhotoDecoratorScreenState extends State<PhotoDecoratorScreen> {
   }
 
   Future<void> _processPhotos() async {
-    setState(() => _isProcessing = true);
+    setState(() {
+      _isProcessing = true;
+      _decoratedImages.clear();
+    });
 
     try {
-      final results = <String>[];
+      final decoratedImages = <Uint8List>[];
 
       for (final photo in _selectedPhotos) {
         if (photo.bytes == null) continue;
 
-        final resultUrl = await _apiService.decoratePhotoBytes(
+        final result = await _apiService.decoratePhotoBytes(
           imageBytes: photo.bytes!,
           fileName: photo.name,
           style: _selectedStyle!,
           tripId: widget.tripId,
         );
-        results.add(resultUrl);
+
+        final base64Data = result['result_image_base64'] as String?;
+        if (base64Data != null && base64Data.isNotEmpty) {
+          decoratedImages.add(base64Decode(base64Data));
+        }
       }
 
       if (mounted) {
+        setState(() {
+          _decoratedImages.addAll(decoratedImages);
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('${results.length}장의 사진 꾸미기가 완료되었습니다!'),
+            content: Text('${decoratedImages.length}장의 사진 꾸미기가 완료되었습니다!'),
             backgroundColor: AppColors.success,
           ),
         );

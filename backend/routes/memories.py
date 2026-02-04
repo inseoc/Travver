@@ -1,5 +1,6 @@
 """Memories API routes - 사진 꾸미기 / 영상 생성."""
 
+import base64
 from typing import List
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form, status
 
@@ -74,8 +75,11 @@ async def decorate_photo(
             image_format=image_format,
         )
 
-        # 실제로는 S3 등에 업로드하고 URL 반환
-        # 여기서는 placeholder URL 반환
+        # Base64 인코딩하여 클라이언트에 직접 전달
+        result_base64 = base64.b64encode(result_data).decode("utf-8")
+        mime_type = f"image/{image_format}"
+
+        # placeholder URL (향후 S3 업로드 시 실제 URL로 대체)
         result_url = f"https://storage.travver.app/decorated/{image.filename}"
         original_url = f"https://storage.travver.app/original/{image.filename}"
 
@@ -84,6 +88,8 @@ async def decorate_photo(
             result_url=result_url,
             original_url=original_url,
             style=style,
+            result_image_base64=result_base64,
+            result_mime_type=mime_type,
         )
 
     except RateLimitException as e:

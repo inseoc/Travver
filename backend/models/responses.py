@@ -86,6 +86,8 @@ class PhotoDecorateResponse(BaseModel):
     result_url: str = Field(..., description="결과 이미지 URL")
     original_url: str = Field(..., description="원본 이미지 URL")
     style: str = Field(..., description="적용된 스타일")
+    result_image_base64: Optional[str] = Field(default=None, description="결과 이미지 Base64 데이터")
+    result_mime_type: Optional[str] = Field(default=None, description="결과 이미지 MIME 타입")
 
     class Config:
         json_schema_extra = {
@@ -94,6 +96,8 @@ class PhotoDecorateResponse(BaseModel):
                 "result_url": "https://storage.example.com/decorated/123.jpg",
                 "original_url": "https://storage.example.com/original/123.jpg",
                 "style": "watercolor",
+                "result_image_base64": "<base64-encoded-image>",
+                "result_mime_type": "image/jpeg",
             }
         }
 
