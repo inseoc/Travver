@@ -1,10 +1,12 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/trip.dart';
+import '../models/decorated_photo.dart';
 
 /// 로컬 저장소 서비스
 class StorageService {
   static const String _tripsKey = 'trips';
+  static const String _photosKey = 'decorated_photos';
 
   /// 모든 여행 조회
   Future<List<Trip>> getAllTrips() async {
@@ -59,5 +61,48 @@ class StorageService {
   Future<void> clearAllTrips() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_tripsKey);
+  }
+
+  // ── 꾸며진 사진 저장 ──
+
+  /// 여행별 꾸며진 사진 조회
+  Future<List<DecoratedPhoto>> getPhotosByTripId(String tripId) async {
+    final allPhotos = await _getAllPhotos();
+    return allPhotos.where((p) => p.tripId == tripId).toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  }
+
+  /// 꾸며진 사진 저장
+  Future<void> savePhoto(DecoratedPhoto photo) async {
+    final photos = await _getAllPhotos();
+    final existingIndex = photos.indexWhere((p) => p.id == photo.id);
+    if (existingIndex != -1) {
+      photos[existingIndex] = photo;
+    } else {
+      photos.insert(0, photo);
+    }
+    await _saveAllPhotos(photos);
+  }
+
+  /// 꾸며진 사진 삭제
+  Future<void> deletePhoto(String photoId) async {
+    final photos = await _getAllPhotos();
+    photos.removeWhere((p) => p.id == photoId);
+    await _saveAllPhotos(photos);
+  }
+
+  Future<List<DecoratedPhoto>> _getAllPhotos() async {
+    final prefs = await SharedPreferences.getInstance();
+    final photosJson = prefs.getStringList(_photosKey) ?? [];
+    return photosJson.map((json) {
+      final Map<String, dynamic> data = jsonDecode(json);
+      return DecoratedPhoto.fromJson(data);
+    }).toList();
+  }
+
+  Future<void> _saveAllPhotos(List<DecoratedPhoto> photos) async {
+    final prefs = await SharedPreferences.getInstance();
+    final photosJson = photos.map((p) => jsonEncode(p.toJson())).toList();
+    await prefs.setStringList(_photosKey, photosJson);
   }
 }
