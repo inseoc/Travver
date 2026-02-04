@@ -43,18 +43,21 @@ class TravelPlannerAgent:
 
 규칙:
 - 하루 4-6개 장소, 09~22시, 식사 3끼 포함
-- 장소 간 이동 30분 이내, 동선 최적화 (지역별 그룹핑)
+- 동선 최적화: 같은 권역/지역끼리 그룹핑하여 이동 최소화
 - 장소 중복 금지 (전체 여행 기간 동안)
 - 반드시 실제 존재하는 구체적 장소명 사용 (일반 명칭 금지)
 - 수집된 장소 정보의 실제 장소명과 좌표 우선 사용
 - 계절/인원에 맞는 장소 추천
 - 숙소가 주어지면 그 근처에서 일정 시작/종료
+- 넓은 지역(제주도 등)은 하루 일정을 한 권역(동부/서부/북부/남부)으로 집중
 
 카테고리: food, sightseeing, accommodation, activity, shopping, rest
 
 출력 형식 (반드시 준수):
 - time: 시작 시간만 "HH:MM" 형식 (예: "09:00", "13:30"). 시간 범위("09:00-10:40") 금지.
 - duration_min: 소요 시간은 별도 필드로 분 단위 정수 제공.
+
+중요: 반드시 daily_plans 배열이 포함된 JSON만 출력할 것. 질문, 대안 제시, 설명 등 텍스트 응답 금지. 어떤 상황에서도 일정을 생성하여 JSON으로 반환해야 한다.
 
 출력: JSON {daily_plans: [{day, date, theme, schedules: [{order, time, place, category, duration_min, estimated_cost, description, location: {lat, lng}}]}]}"""
 
@@ -318,8 +321,15 @@ class TravelPlannerAgent:
 
             data = json.loads(json_str)
 
+            if "daily_plans" not in data:
+                logger.warning(
+                    f"AI response JSON missing 'daily_plans' key. Keys: {list(data.keys())}. "
+                    f"Preview: {json_str[:200]}..."
+                )
+                return []
+
             daily_plans = []
-            for plan_data in data.get("daily_plans", []):
+            for plan_data in data["daily_plans"]:
                 schedules = []
                 for sched_data in plan_data.get("schedules", []):
                     try:
