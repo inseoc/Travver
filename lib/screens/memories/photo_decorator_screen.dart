@@ -7,7 +7,9 @@ import 'package:provider/provider.dart';
 import '../../app/theme.dart';
 import '../../models/trip.dart';
 import '../../providers/trip_provider.dart';
+import '../../models/decorated_photo.dart';
 import '../../services/api_service.dart';
+import '../../services/storage_service.dart';
 
 /// 사진 꾸미기 화면
 class PhotoDecoratorScreen extends StatefulWidget {
@@ -49,6 +51,7 @@ class _PhotoDecoratorScreenState extends State<PhotoDecoratorScreen> {
   Trip? _trip;
   final ImagePicker _picker = ImagePicker();
   final ApiService _apiService = ApiService();
+  final StorageService _storageService = StorageService();
 
   final List<PhotoStyle> _styles = [
     PhotoStyle('watercolor', '수채화', Icons.water_drop),
@@ -355,7 +358,7 @@ class _PhotoDecoratorScreenState extends State<PhotoDecoratorScreen> {
                                     color: Colors.white,
                                   ),
                                 )
-                              : Icon(Icons.auto_awesome, size: 16),
+                              : const Icon(Icons.auto_awesome, size: 16),
                           label: Text(
                             item.isProcessing
                                 ? '처리 중...'
@@ -375,17 +378,20 @@ class _PhotoDecoratorScreenState extends State<PhotoDecoratorScreen> {
                     if (item.isDecorated && !item.isSaved) ...[
                       const SizedBox(width: 8),
                       // 저장 버튼
-                      SizedBox(
-                        height: 40,
-                        child: ElevatedButton.icon(
-                          onPressed: () => _savePhoto(item),
-                          icon: const Icon(Icons.save_alt, size: 16),
-                          label: const Text('저장',
-                              style: TextStyle(fontSize: 13)),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.success,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
+                      Flexible(
+                        flex: 0,
+                        child: SizedBox(
+                          height: 40,
+                          child: ElevatedButton.icon(
+                            onPressed: () => _savePhoto(item),
+                            icon: const Icon(Icons.save_alt, size: 16),
+                            label: const Text('저장',
+                                style: TextStyle(fontSize: 13)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.success,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
                             ),
                           ),
                         ),
@@ -458,7 +464,9 @@ class _PhotoDecoratorScreenState extends State<PhotoDecoratorScreen> {
             fit: StackFit.expand,
             children: [
               if (item.original.bytes != null)
-                Image.memory(item.original.bytes!, fit: BoxFit.cover)
+                Positioned.fill(
+                  child: Image.memory(item.original.bytes!, fit: BoxFit.cover),
+                )
               else
                 Container(color: Colors.grey.shade200),
               Positioned(
@@ -487,7 +495,9 @@ class _PhotoDecoratorScreenState extends State<PhotoDecoratorScreen> {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              Image.memory(item.decoratedBytes!, fit: BoxFit.cover),
+              Positioned.fill(
+                child: Image.memory(item.decoratedBytes!, fit: BoxFit.cover),
+              ),
               Positioned(
                 right: 6,
                 top: 6,
@@ -603,20 +613,40 @@ class _PhotoDecoratorScreenState extends State<PhotoDecoratorScreen> {
     if (item.decoratedBase64 == null) return;
 
     try {
-      final result = await _apiService.saveDecoratedPhoto(
+      // 백엔드에 저장 시도
+      String? photoId;
+      try {
+        final result = await _apiService.saveDecoratedPhoto(
+          tripId: widget.tripId!,
+          originalFilename: item.original.name,
+          style: item.selectedStyle!,
+          resultImageBase64: item.decoratedBase64!,
+          resultMimeType: item.decoratedMimeType ?? 'image/jpeg',
+        );
+        final photoData = result['photo'] as Map<String, dynamic>?;
+        photoId = photoData?['id'] as String?;
+      } catch (_) {
+        // 백엔드 실패 시 로컬 ID 생성
+      }
+
+      photoId ??=
+          'photo_${DateTime.now().millisecondsSinceEpoch}';
+
+      // 로컬 저장 (항상)
+      final photo = DecoratedPhoto(
+        id: photoId,
         tripId: widget.tripId!,
         originalFilename: item.original.name,
         style: item.selectedStyle!,
         resultImageBase64: item.decoratedBase64!,
         resultMimeType: item.decoratedMimeType ?? 'image/jpeg',
+        createdAt: DateTime.now(),
       );
+      await _storageService.savePhoto(photo);
 
-      final photoData = result['photo'] as Map<String, dynamic>?;
-      if (photoData != null) {
-        setState(() {
-          item.savedPhotoId = photoData['id'] as String?;
-        });
-      }
+      setState(() {
+        item.savedPhotoId = photoId;
+      });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

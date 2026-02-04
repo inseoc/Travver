@@ -9,6 +9,7 @@ import '../../models/trip.dart';
 import '../../models/decorated_photo.dart';
 import '../../providers/trip_provider.dart';
 import '../../services/api_service.dart';
+import '../../services/storage_service.dart';
 
 /// 여행 추억 갤러리 화면
 class TripMemoriesScreen extends StatefulWidget {
@@ -22,6 +23,7 @@ class TripMemoriesScreen extends StatefulWidget {
 
 class _TripMemoriesScreenState extends State<TripMemoriesScreen> {
   final ApiService _apiService = ApiService();
+  final StorageService _storageService = StorageService();
   Trip? _trip;
   List<DecoratedPhoto> _photos = [];
   bool _isLoading = true;
@@ -38,8 +40,8 @@ class _TripMemoriesScreenState extends State<TripMemoriesScreen> {
 
     setState(() => _isLoading = true);
     try {
-      final photosJson = await _apiService.getTripPhotos(widget.tripId);
-      _photos = photosJson.map((j) => DecoratedPhoto.fromJson(j)).toList();
+      // 로컬 저장소에서 우선 로드
+      _photos = await _storageService.getPhotosByTripId(widget.tripId);
     } catch (_) {
       _photos = [];
     }
@@ -97,14 +99,6 @@ class _TripMemoriesScreenState extends State<TripMemoriesScreen> {
                 ),
               ),
             ),
-            actions: [
-              IconButton(
-                onPressed: () =>
-                    context.push(AppRoutes.photoDecorator, extra: widget.tripId),
-                icon: const Icon(Icons.add_photo_alternate),
-                tooltip: '사진 꾸미기',
-              ),
-            ],
           ),
 
           // 콘텐츠
@@ -240,24 +234,26 @@ class _TripMemoriesScreenState extends State<TripMemoriesScreen> {
             ),
             const SizedBox(height: 12),
             Container(
+              width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: BoxDecoration(
                 color: AppColors.surface,
                 borderRadius: BorderRadius.circular(AppDimens.radiusSmall),
               ),
               child: Row(
-                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(photo.styleLabel,
                       style: AppTypography.body2
                           .copyWith(fontWeight: FontWeight.w600)),
                   const SizedBox(width: 8),
-                  Text(
-                    photo.originalFilename,
-                    style: AppTypography.caption
-                        .copyWith(color: AppColors.textSecondary),
+                  Expanded(
+                    child: Text(
+                      photo.originalFilename,
+                      style: AppTypography.caption
+                          .copyWith(color: AppColors.textSecondary),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                  const Spacer(),
                   IconButton(
                     onPressed: () {
                       Navigator.pop(context);
@@ -301,7 +297,13 @@ class _TripMemoriesScreenState extends State<TripMemoriesScreen> {
 
   Future<void> _deletePhoto(DecoratedPhoto photo) async {
     try {
-      await _apiService.deleteDecoratedPhoto(photo.id);
+      // 로컬 삭제
+      await _storageService.deletePhoto(photo.id);
+      // 백엔드 삭제 (실패해도 무시)
+      try {
+        await _apiService.deleteDecoratedPhoto(photo.id);
+      } catch (_) {}
+
       setState(() {
         _photos.removeWhere((p) => p.id == photo.id);
       });
