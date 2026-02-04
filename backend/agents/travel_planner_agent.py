@@ -52,6 +52,10 @@ class TravelPlannerAgent:
 
 카테고리: food, sightseeing, accommodation, activity, shopping, rest
 
+출력 형식 (반드시 준수):
+- time: 시작 시간만 "HH:MM" 형식 (예: "09:00", "13:30"). 시간 범위("09:00-10:40") 금지.
+- duration_min: 소요 시간은 별도 필드로 분 단위 정수 제공.
+
 출력: JSON {daily_plans: [{day, date, theme, schedules: [{order, time, place, category, duration_min, estimated_cost, description, location: {lat, lng}}]}]}"""
 
     async def generate_plan(
@@ -319,9 +323,19 @@ class TravelPlannerAgent:
                 schedules = []
                 for sched_data in plan_data.get("schedules", []):
                     try:
+                        # AI가 "09:00-10:40" 같은 시간 범위를 반환할 수 있으므로
+                        # 시작 시간만 추출 (HH:MM)
+                        raw_time = str(sched_data.get("time", ""))
+                        if "-" in raw_time:
+                            raw_time = raw_time.split("-")[0].strip()
+                        # "09:00" 형태가 아닌 경우 정규화
+                        time_match = re.match(r"(\d{1,2}):(\d{2})", raw_time)
+                        if time_match:
+                            raw_time = f"{int(time_match.group(1)):02d}:{time_match.group(2)}"
+
                         schedule = Schedule(
                             order=sched_data["order"],
-                            time=sched_data["time"],
+                            time=raw_time,
                             place=sched_data["place"],
                             category=PlaceCategory(sched_data["category"]),
                             duration_min=sched_data["duration_min"],

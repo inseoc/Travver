@@ -34,11 +34,29 @@ class PlacesTool:
         client = self._get_client()
         geo_response = await client.get(
             geocode_url,
-            params={"address": location, "key": self.api_key},
+            params={"address": location, "key": self.api_key, "language": "ko"},
         )
         geo_data = geo_response.json()
 
         if geo_data.get("status") != "OK" or not geo_data.get("results"):
+            # 한국 주요 도시 좌표 폴백
+            fallback_coords = {
+                "제주도": (33.4996, 126.5312),
+                "제주": (33.4996, 126.5312),
+                "서울": (37.5665, 126.9780),
+                "부산": (35.1796, 129.0756),
+                "경주": (35.8562, 129.2247),
+                "강릉": (37.7519, 128.8760),
+                "여수": (34.7604, 127.6622),
+                "전주": (35.8242, 127.1480),
+                "인천": (37.4563, 126.7052),
+                "속초": (38.2070, 128.5918),
+            }
+            for name, coords in fallback_coords.items():
+                if name in location:
+                    logger.info(f"Using fallback coordinates for: {location}")
+                    self._geocode_cache[location] = coords
+                    return coords
             return None
 
         lat = geo_data["results"][0]["geometry"]["location"]["lat"]
