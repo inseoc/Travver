@@ -303,7 +303,7 @@ class GeminiService:
             self._veo_client.files.download(file=generated_video.video)
 
             # 비디오 바이트 데이터 반환
-            video_bytes = generated_video.video.read()
+            video_bytes = generated_video.video.video_bytes
 
             logger.info(f"Video creation completed: {duration}s, aspect_ratio={aspect_ratio}")
             return video_bytes
