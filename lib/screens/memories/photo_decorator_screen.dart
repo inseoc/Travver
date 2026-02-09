@@ -114,6 +114,18 @@ class _PhotoDecoratorScreenState extends State<PhotoDecoratorScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.surface,
         title: Text('사진 꾸미기', style: AppTypography.subhead1),
+        actions: [
+          if (_photoItems.length < 10)
+            TextButton.icon(
+              onPressed: _selectPhotos,
+              icon: const Icon(Icons.add_photo_alternate,
+                  size: 20, color: AppColors.accent),
+              label: Text(
+                '사진 추가',
+                style: AppTypography.body2.copyWith(color: AppColors.accent),
+              ),
+            ),
+        ],
       ),
       body: Column(
         children: [
@@ -128,12 +140,6 @@ class _PhotoDecoratorScreenState extends State<PhotoDecoratorScreen> {
           // 하단 저장/갤러리 바
           if (hasUnsaved || allSaved) _buildBottomBar(hasUnsaved, allSaved),
         ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _selectPhotos,
-        backgroundColor: AppColors.accent,
-        icon: const Icon(Icons.add_photo_alternate),
-        label: const Text('사진 추가'),
       ),
     );
   }
@@ -387,20 +393,17 @@ class _PhotoDecoratorScreenState extends State<PhotoDecoratorScreen> {
                     if (item.isDecorated && !item.isSaved) ...[
                       const SizedBox(width: 8),
                       // 저장 버튼
-                      Flexible(
-                        flex: 0,
-                        child: SizedBox(
-                          height: 40,
-                          child: ElevatedButton.icon(
-                            onPressed: () => _savePhoto(item),
-                            icon: const Icon(Icons.save_alt, size: 16),
-                            label: const Text('저장',
-                                style: TextStyle(fontSize: 13)),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.success,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
+                      SizedBox(
+                        height: 40,
+                        child: ElevatedButton.icon(
+                          onPressed: () => _savePhoto(item),
+                          icon: const Icon(Icons.save_alt, size: 16),
+                          label: const Text('저장',
+                              style: TextStyle(fontSize: 13)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.success,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
                             ),
                           ),
                         ),
@@ -466,6 +469,7 @@ class _PhotoDecoratorScreenState extends State<PhotoDecoratorScreen> {
 
   Widget _buildBeforeAfter(_PhotoItem item) {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         // 원본
         Expanded(
@@ -473,9 +477,10 @@ class _PhotoDecoratorScreenState extends State<PhotoDecoratorScreen> {
             fit: StackFit.expand,
             children: [
               if (item.original.bytes != null)
-                Positioned.fill(
-                  child: Image.memory(item.original.bytes!, fit: BoxFit.cover),
-                )
+                Image.memory(item.original.bytes!,
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                    height: double.infinity)
               else
                 Container(color: Colors.grey.shade200),
               Positioned(
@@ -504,9 +509,10 @@ class _PhotoDecoratorScreenState extends State<PhotoDecoratorScreen> {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              Positioned.fill(
-                child: Image.memory(item.decoratedBytes!, fit: BoxFit.cover),
-              ),
+              Image.memory(item.decoratedBytes!,
+                  fit: BoxFit.cover,
+                  width: double.infinity,
+                  height: double.infinity),
               Positioned(
                 right: 6,
                 top: 6,
