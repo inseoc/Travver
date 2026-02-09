@@ -10,6 +10,7 @@ import '../../providers/trip_provider.dart';
 import '../../models/decorated_photo.dart';
 import '../../services/api_service.dart';
 import '../../services/storage_service.dart';
+import '../../app/routes.dart';
 
 /// 사진 꾸미기 화면
 class PhotoDecoratorScreen extends StatefulWidget {
@@ -102,6 +103,11 @@ class _PhotoDecoratorScreenState extends State<PhotoDecoratorScreen> {
       );
     }
 
+    final hasUnsaved = _photoItems.any((p) => p.isDecorated && !p.isSaved);
+    final allSaved = _photoItems.isNotEmpty &&
+        _photoItems.every((p) => !p.isDecorated || p.isSaved) &&
+        _photoItems.any((p) => p.isSaved);
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -118,6 +124,8 @@ class _PhotoDecoratorScreenState extends State<PhotoDecoratorScreen> {
                 ? _buildEmptyState()
                 : _buildPhotoList(),
           ),
+          // 하단 저장/갤러리 바
+          if (hasUnsaved || allSaved) _buildBottomBar(hasUnsaved, allSaved),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
@@ -609,7 +617,7 @@ class _PhotoDecoratorScreenState extends State<PhotoDecoratorScreen> {
     }
   }
 
-  Future<void> _savePhoto(_PhotoItem item) async {
+  Future<void> _savePhoto(_PhotoItem item, {bool silent = false}) async {
     if (item.decoratedBase64 == null) return;
 
     try {
@@ -648,7 +656,7 @@ class _PhotoDecoratorScreenState extends State<PhotoDecoratorScreen> {
         item.savedPhotoId = photoId;
       });
 
-      if (mounted) {
+      if (!silent && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('사진이 저장되었습니다!'),
@@ -657,7 +665,7 @@ class _PhotoDecoratorScreenState extends State<PhotoDecoratorScreen> {
         );
       }
     } catch (e) {
-      if (mounted) {
+      if (!silent && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('저장 실패: $e'),
@@ -672,6 +680,130 @@ class _PhotoDecoratorScreenState extends State<PhotoDecoratorScreen> {
     setState(() {
       _photoItems.removeAt(index);
     });
+  }
+
+  Widget _buildBottomBar(bool hasUnsaved, bool allSaved) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(
+        AppDimens.spacing16,
+        AppDimens.spacing12,
+        AppDimens.spacing16,
+        AppDimens.spacing16,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 8,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            if (hasUnsaved)
+              Expanded(
+                child: SizedBox(
+                  height: 48,
+                  child: ElevatedButton.icon(
+                    onPressed: _isSavingAll ? null : _saveAllPhotos,
+                    icon: _isSavingAll
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(Icons.save_alt, size: 20),
+                    label: Text(
+                      _isSavingAll ? '저장 중...' : '모두 저장',
+                      style: const TextStyle(
+                          fontSize: 15, fontWeight: FontWeight.w600),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.success,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            if (hasUnsaved && allSaved) const SizedBox(width: 10),
+            if (allSaved || !hasUnsaved)
+              Expanded(
+                child: SizedBox(
+                  height: 48,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      context.push(
+                          AppRoutes.tripMemories, extra: widget.tripId);
+                    },
+                    icon: const Icon(Icons.photo_library_outlined, size: 20),
+                    label: const Text(
+                      '추억 갤러리 보기',
+                      style:
+                          TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.accent,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  bool _isSavingAll = false;
+
+  Future<void> _saveAllPhotos() async {
+    final unsaved =
+        _photoItems.where((p) => p.isDecorated && !p.isSaved).toList();
+    if (unsaved.isEmpty) return;
+
+    setState(() => _isSavingAll = true);
+
+    int savedCount = 0;
+    for (final item in unsaved) {
+      try {
+        await _savePhoto(item, silent: true);
+        if (item.isSaved) savedCount++;
+      } catch (_) {
+        // 개별 실패는 무시하고 계속 진행
+      }
+    }
+
+    if (mounted) {
+      setState(() => _isSavingAll = false);
+      if (savedCount > 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('$savedCount장의 사진이 저장되었습니다!'),
+            backgroundColor: AppColors.success,
+            action: SnackBarAction(
+              label: '갤러리 보기',
+              textColor: Colors.white,
+              onPressed: () {
+                context.push(AppRoutes.tripMemories, extra: widget.tripId);
+              },
+            ),
+          ),
+        );
+      }
+    }
   }
 }
 

@@ -84,6 +84,22 @@ class StorageService {
     await _saveAllPhotos(photos);
   }
 
+  /// 여행별 꾸며진 사진 개수 조회
+  Future<int> getPhotoCountByTripId(String tripId) async {
+    final allPhotos = await _getAllPhotos();
+    return allPhotos.where((p) => p.tripId == tripId).length;
+  }
+
+  /// 모든 여행의 사진 개수를 Map으로 반환 {tripId: count}
+  Future<Map<String, int>> getAllPhotoCountsByTrip() async {
+    final allPhotos = await _getAllPhotos();
+    final counts = <String, int>{};
+    for (final photo in allPhotos) {
+      counts[photo.tripId] = (counts[photo.tripId] ?? 0) + 1;
+    }
+    return counts;
+  }
+
   /// 꾸며진 사진 삭제
   Future<void> deletePhoto(String photoId) async {
     final photos = await _getAllPhotos();
