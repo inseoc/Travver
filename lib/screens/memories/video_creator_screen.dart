@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
@@ -44,6 +45,10 @@ class _VideoCreatorScreenState extends State<VideoCreatorScreen> {
   Trip? _trip;
   final ImagePicker _picker = ImagePicker();
   final ApiService _apiService = ApiService();
+
+  // 생성 결과
+  Uint8List? _resultVideoBytes;
+  String? _resultStyle;
 
   final List<VideoStyle> _styles = [
     VideoStyle('cinematic', '시네마틱 여행', Icons.movie_creation),
@@ -96,6 +101,11 @@ class _VideoCreatorScreenState extends State<VideoCreatorScreen> {
           ),
         ),
       );
+    }
+
+    // 결과 화면
+    if (_resultVideoBytes != null) {
+      return _buildResultScreen();
     }
 
     return Scaffold(
@@ -691,7 +701,7 @@ class _VideoCreatorScreenState extends State<VideoCreatorScreen> {
               ))
           .toList();
 
-      final resultUrl = await _apiService.createVideoBytes(
+      final result = await _apiService.createVideoBytes(
         mediaFiles: mediaFiles,
         style: _selectedStyle!,
         music: _selectedMusic!,
@@ -699,13 +709,21 @@ class _VideoCreatorScreenState extends State<VideoCreatorScreen> {
         tripId: widget.tripId,
       );
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('영상이 생성되었습니다!'),
-            backgroundColor: AppColors.success,
-          ),
-        );
+      final base64Data = result['result_video_base64'] as String?;
+      if (base64Data != null && base64Data.isNotEmpty) {
+        setState(() {
+          _resultVideoBytes = base64Decode(base64Data);
+          _resultStyle = result['style'] as String?;
+        });
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('영상이 생성되었지만 데이터를 받지 못했습니다'),
+              backgroundColor: AppColors.warning,
+            ),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -720,6 +738,182 @@ class _VideoCreatorScreenState extends State<VideoCreatorScreen> {
       if (mounted) {
         setState(() => _isProcessing = false);
       }
+    }
+  }
+
+  String _getStyleLabel(String? styleId) {
+    final style = _styles.where((s) => s.id == styleId).firstOrNull;
+    return style?.label ?? '영상';
+  }
+
+  Widget _buildResultScreen() {
+    final fileSizeMB = (_resultVideoBytes!.length / (1024 * 1024)).toStringAsFixed(1);
+
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        backgroundColor: AppColors.surface,
+        title: Text('영상 완성', style: AppTypography.subhead1),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            setState(() {
+              _resultVideoBytes = null;
+              _resultStyle = null;
+            });
+          },
+        ),
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(AppDimens.spacing24),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // 성공 아이콘
+                    Container(
+                      width: 100,
+                      height: 100,
+                      decoration: BoxDecoration(
+                        color: AppColors.success.withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.check_circle_outline,
+                        size: 56,
+                        color: AppColors.success,
+                      ),
+                    ),
+                    const SizedBox(height: AppDimens.spacing24),
+
+                    Text(
+                      '영상이 완성되었습니다!',
+                      style: AppTypography.subhead1,
+                    ),
+                    const SizedBox(height: AppDimens.spacing8),
+                    Text(
+                      '${_trip?.destination ?? ""} ${_getStyleLabel(_resultStyle)}',
+                      style: AppTypography.body1.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+
+                    const SizedBox(height: AppDimens.spacing24),
+
+                    // 영상 정보 카드
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(AppDimens.spacing16),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius:
+                            BorderRadius.circular(AppDimens.cardRadius),
+                        boxShadow: AppShadows.card,
+                      ),
+                      child: Column(
+                        children: [
+                          _buildInfoRow(Icons.movie_outlined, '스타일',
+                              _getStyleLabel(_resultStyle)),
+                          const Divider(height: 20),
+                          _buildInfoRow(Icons.timer_outlined, '길이',
+                              '$_duration초'),
+                          const Divider(height: 20),
+                          _buildInfoRow(Icons.sd_storage_outlined, '크기',
+                              '${fileSizeMB}MB'),
+                          const Divider(height: 20),
+                          _buildInfoRow(Icons.high_quality_outlined, '포맷',
+                              'MP4'),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          // 하단 버튼
+          Container(
+            padding: const EdgeInsets.all(AppDimens.spacing20),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  offset: const Offset(0, -2),
+                  blurRadius: 8,
+                ),
+              ],
+            ),
+            child: SafeArea(
+              top: false,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: _saveVideoToDevice,
+                      icon: const Icon(Icons.download),
+                      label: const Text('기기에 저장'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.info,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: AppDimens.spacing8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        setState(() {
+                          _resultVideoBytes = null;
+                          _resultStyle = null;
+                        });
+                      },
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('새 영상 만들기'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(IconData icon, String label, String value) {
+    return Row(
+      children: [
+        Icon(icon, size: 20, color: AppColors.textSecondary),
+        const SizedBox(width: AppDimens.spacing12),
+        Text(label, style: AppTypography.body2.copyWith(
+          color: AppColors.textSecondary,
+        )),
+        const Spacer(),
+        Text(value, style: AppTypography.body2.copyWith(
+          fontWeight: FontWeight.w600,
+        )),
+      ],
+    );
+  }
+
+  Future<void> _saveVideoToDevice() async {
+    if (_resultVideoBytes == null) return;
+
+    // TODO: path_provider + share_plus 패키지 추가 후 실제 저장/공유 구현
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('기기 저장 기능은 준비 중입니다'),
+          backgroundColor: AppColors.warning,
+        ),
+      );
     }
   }
 }
