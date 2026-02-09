@@ -232,6 +232,18 @@ class _PlanResultScreenState extends State<PlanResultScreen> {
   }
 
   void _showOptionsMenu() {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final tripStart = _trip != null
+        ? DateTime(
+            _trip!.period.start.year,
+            _trip!.period.start.month,
+            _trip!.period.start.day,
+          )
+        : null;
+    final isMemoryEligible =
+        tripStart != null && !tripStart.isAfter(today);
+
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -242,6 +254,31 @@ class _PlanResultScreenState extends State<PlanResultScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              if (isMemoryEligible) ...[
+                ListTile(
+                  leading: const Icon(Icons.photo_library_outlined,
+                      color: AppColors.accent),
+                  title: const Text('추억 갤러리'),
+                  subtitle: const Text('저장된 꾸며진 사진 보기'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    context.push(
+                        AppRoutes.tripMemories, extra: _trip!.id);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.auto_awesome,
+                      color: AppColors.accent),
+                  title: const Text('사진 꾸미기'),
+                  subtitle: const Text('AI로 여행 사진을 꾸며보세요'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    context.push(
+                        AppRoutes.photoDecorator, extra: _trip!.id);
+                  },
+                ),
+                const Divider(height: 1),
+              ],
               ListTile(
                 leading: const Icon(Icons.share_outlined),
                 title: const Text('공유하기'),

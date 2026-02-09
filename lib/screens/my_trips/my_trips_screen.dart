@@ -6,6 +6,7 @@ import '../../app/routes.dart';
 import '../../models/trip.dart';
 import '../../providers/trip_provider.dart';
 import '../../widgets/common/trip_card.dart';
+import '../../services/storage_service.dart';
 
 /// 내 여행 목록 화면
 /// - 저장된 여행 계획 관리
@@ -20,11 +21,21 @@ class _MyTripsScreenState extends State<MyTripsScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final List<String> _tabs = ['전체', '예정', '진행중', '완료'];
+  final StorageService _storageService = StorageService();
+  Map<String, int> _photoCounts = {};
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: _tabs.length, vsync: this);
+    _loadPhotoCounts();
+  }
+
+  Future<void> _loadPhotoCounts() async {
+    final counts = await _storageService.getAllPhotoCountsByTrip();
+    if (mounted) {
+      setState(() => _photoCounts = counts);
+    }
   }
 
   @override
@@ -207,9 +218,46 @@ class _MyTripsScreenState extends State<MyTripsScreen>
                         ),
                       ),
                       const SizedBox(height: AppDimens.spacing4),
-                      Text(
-                        '${trip.travelers}명 · ${trip.budget.displayString}',
-                        style: AppTypography.caption,
+                      Row(
+                        children: [
+                          Text(
+                            '${trip.travelers}명 · ${trip.budget.displayString}',
+                            style: AppTypography.caption,
+                          ),
+                          if ((_photoCounts[trip.id] ?? 0) > 0) ...[
+                            const SizedBox(width: 8),
+                            GestureDetector(
+                              onTap: () {
+                                context.push(
+                                    AppRoutes.tripMemories, extra: trip.id);
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: AppColors.accent.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.photo_library,
+                                        size: 12, color: AppColors.accent),
+                                    const SizedBox(width: 3),
+                                    Text(
+                                      '추억 ${_photoCounts[trip.id]}',
+                                      style: AppTypography.caption.copyWith(
+                                        color: AppColors.accent,
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ],
                   ),
