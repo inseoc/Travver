@@ -295,8 +295,9 @@ async def create_video(
             aspect_ratio=aspect_ratio,
         )
 
-        # 실제로는 S3 등에 업로드하고 URL 반환
+        # Base64 인코딩하여 클라이언트에 직접 전달
         video_id = uuid.uuid4().hex[:12]
+        result_base64 = base64.b64encode(result_data).decode("utf-8")
 
         return VideoCreateResponse(
             success=True,
@@ -305,6 +306,8 @@ async def create_video(
             duration=duration,
             style=style,
             aspect_ratio=aspect_ratio,
+            result_video_base64=result_base64,
+            result_mime_type="video/mp4",
         )
 
     except RateLimitException as e:

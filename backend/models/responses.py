@@ -110,6 +110,8 @@ class VideoCreateResponse(BaseModel):
     duration: int = Field(..., description="영상 길이 (초)")
     style: str = Field(..., description="적용된 스타일")
     aspect_ratio: str = Field(default="16:9", description="영상 가로세로 비율 (16:9 또는 9:16)")
+    result_video_base64: Optional[str] = Field(default=None, description="결과 영상 Base64 데이터")
+    result_mime_type: Optional[str] = Field(default=None, description="결과 영상 MIME 타입")
 
     class Config:
         json_schema_extra = {
@@ -120,6 +122,8 @@ class VideoCreateResponse(BaseModel):
                 "duration": 30,
                 "style": "cinematic",
                 "aspect_ratio": "16:9",
+                "result_video_base64": "<base64-encoded-video>",
+                "result_mime_type": "video/mp4",
             }
         }
 

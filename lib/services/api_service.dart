@@ -252,7 +252,8 @@ class ApiService {
   }
 
   /// 영상 생성 API (bytes 기반 - 웹 지원)
-  Future<String> createVideoBytes({
+  /// 반환값: {'result_url': String, 'result_video_base64': String?, 'result_mime_type': String?, ...}
+  Future<Map<String, dynamic>> createVideoBytes({
     required List<MediaFile> mediaFiles,
     required String style,
     required String music,
@@ -296,7 +297,13 @@ class ApiService {
         ),
       );
 
-      return response.data['result_url'] as String;
+      return {
+        'result_url': response.data['result_url'] as String,
+        'result_video_base64': response.data['result_video_base64'] as String?,
+        'result_mime_type': response.data['result_mime_type'] as String?,
+        'duration': response.data['duration'] as int?,
+        'style': response.data['style'] as String?,
+      };
     } on DioException catch (e) {
       throw _handleError(e);
     }
