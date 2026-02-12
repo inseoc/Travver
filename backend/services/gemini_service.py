@@ -302,7 +302,7 @@ class GeminiService:
             # 4. Veo 3.1 API 호출 (image-to-video 모드)
             veo_config = self._veo_types.GenerateVideosConfig(
                 aspect_ratio=aspect_ratio,
-                person_generation="allow_all",
+                person_generation="allow_adult",
             )
 
             if reference_image_bytes is not None:
