@@ -269,15 +269,15 @@ class GeminiService:
         try:
             logger.info(f"Creating video: style={style}, music={music}, duration={duration}s, aspect_ratio={aspect_ratio}, files={len(media_files)}")
 
-            # 1. 업로드된 이미지에서 레퍼런스 이미지 추출
-            reference_image = self._extract_reference_image(media_files)
+            # 1. 업로드된 이미지에서 레퍼런스 이미지 추출 (JPEG bytes)
+            reference_image_bytes = self._extract_reference_image(media_files)
 
             # 2. 이미지 분석으로 실제 내용 파악
             image_description = await self._analyze_media_for_video(media_files)
             logger.info(f"Image analysis result: {image_description[:150]}...")
 
             # 3. 이미지 기반 프롬프트 생성
-            if reference_image is not None:
+            if reference_image_bytes is not None:
                 full_prompt = (
                     f"Based on this reference image, create a video that features "
                     f"the SAME people, location, and scene shown in the photo. "
@@ -305,7 +305,12 @@ class GeminiService:
                 person_generation="allow_all",
             )
 
-            if reference_image is not None:
+            if reference_image_bytes is not None:
+                # types.Image에 bytesBase64Encoded + mimeType 포함하여 전달
+                reference_image = self._veo_types.Image(
+                    image_bytes=reference_image_bytes,
+                    mime_type="image/jpeg",
+                )
                 logger.info("Using image-to-video mode with reference image")
                 operation = self._veo_client.models.generate_videos(
                     model=settings.gemini_video_model,
@@ -352,12 +357,12 @@ class GeminiService:
             logger.error(f"Veo API error: {e}")
             raise GeminiException(str(e))
 
-    def _extract_reference_image(self, media_files: list[bytes]):
+    def _extract_reference_image(self, media_files: list[bytes]) -> Optional[bytes]:
         """
-        업로드된 파일에서 첫 번째 유효한 이미지를 레퍼런스로 추출합니다.
+        업로드된 파일에서 첫 번째 유효한 이미지를 JPEG bytes로 추출합니다.
 
         Returns:
-            PIL Image object or None
+            JPEG image bytes or None
         """
         from PIL import Image
 
@@ -369,7 +374,10 @@ class GeminiService:
                 # RGB로 변환 (RGBA, P 등 다른 모드 대응)
                 if img.mode not in ("RGB",):
                     img = img.convert("RGB")
-                return img
+                # JPEG bytes로 변환하여 일관된 포맷 보장
+                buf = io.BytesIO()
+                img.save(buf, format="JPEG", quality=90)
+                return buf.getvalue()
             except Exception:
                 continue
 
@@ -384,14 +392,16 @@ class GeminiService:
         from PIL import Image
 
         try:
-            contents = [
+            prompt_text = (
                 "Analyze these travel photos and describe them for video creation. "
                 "Focus on: "
                 "1) The people: their appearance, clothing, and what they're doing. "
                 "2) The location: scenery, landmarks, environment. "
                 "3) The mood and atmosphere. "
                 "Be specific and concise. Respond in English in 2-3 sentences."
-            ]
+            )
+
+            contents = [prompt_text]
 
             images_added = 0
             for file_bytes in media_files[:5]:
@@ -402,22 +412,28 @@ class GeminiService:
                         img = img.convert("RGB")
                     contents.append(img)
                     images_added += 1
-                except Exception:
+                except Exception as img_err:
+                    logger.debug(f"Skipping non-image file: {img_err}")
                     continue
 
             if images_added == 0:
+                logger.warning("No valid images found for analysis")
                 return "travel scenes and moments"
 
+            logger.info(f"Analyzing {images_added} images with Gemini Vision")
+
+            # decorate_photo와 동일한 모델 사용 (이미지 처리 확인됨)
             response = self._veo_client.models.generate_content(
-                model=settings.gemini_model,
+                model=settings.gemini_image_model,
                 contents=contents,
             )
 
             description = response.text or "travel scenes and moments"
+            logger.info(f"Image analysis completed: {description[:100]}...")
             return description.strip()
 
         except Exception as e:
-            logger.warning(f"Image analysis for video failed: {e}")
+            logger.warning(f"Image analysis for video failed: {type(e).__name__}: {e}")
             return "travel scenes and moments"
 
     async def analyze_image(
