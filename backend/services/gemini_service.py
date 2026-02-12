@@ -200,6 +200,8 @@ class GeminiService:
         """
         Create video from media files using Gemini Veo 3.1.
 
+        사용자가 업로드한 이미지를 레퍼런스로 사용하여 image-to-video 모드로 생성합니다.
+
         Args:
             media_files: List of media file bytes (images/videos)
             style: Video style (cinematic, vlog, highlight, album)
@@ -265,25 +267,59 @@ class GeminiService:
         music_prompt = music_configs.get(music, "appropriate background music")
 
         try:
-            logger.info(f"Creating video: style={style}, music={music}, duration={duration}s, aspect_ratio={aspect_ratio}")
+            logger.info(f"Creating video: style={style}, music={music}, duration={duration}s, aspect_ratio={aspect_ratio}, files={len(media_files)}")
 
-            full_prompt = (
-                f"{config['prompt']} "
-                f"The video should be approximately {duration} seconds long. "
-                f"Use {config['transition']} transitions with {config['pacing']} pacing. "
-                f"Add {music_prompt}."
+            # 1. 업로드된 이미지에서 레퍼런스 이미지 추출
+            reference_image = self._extract_reference_image(media_files)
+
+            # 2. 이미지 분석으로 실제 내용 파악
+            image_description = await self._analyze_media_for_video(media_files)
+            logger.info(f"Image analysis result: {image_description[:150]}...")
+
+            # 3. 이미지 기반 프롬프트 생성
+            if reference_image is not None:
+                full_prompt = (
+                    f"Based on this reference image, create a video that features "
+                    f"the SAME people, location, and scene shown in the photo. "
+                    f"The image shows: {image_description}. "
+                    f"Maintain the exact appearance of the people and setting. "
+                    f"{config['prompt']} "
+                    f"The video should be approximately {duration} seconds long. "
+                    f"Use {config['transition']} transitions with {config['pacing']} pacing. "
+                    f"Add {music_prompt}."
+                )
+            else:
+                full_prompt = (
+                    f"Create a travel video showing: {image_description}. "
+                    f"{config['prompt']} "
+                    f"The video should be approximately {duration} seconds long. "
+                    f"Use {config['transition']} transitions with {config['pacing']} pacing. "
+                    f"Add {music_prompt}."
+                )
+
+            logger.info(f"Video creation prompt: {full_prompt[:200]}...")
+
+            # 4. Veo 3.1 API 호출 (image-to-video 모드)
+            veo_config = self._veo_types.GenerateVideosConfig(
+                aspect_ratio=aspect_ratio,
+                person_generation="allow_all",
             )
 
-            logger.info(f"Video creation prompt: {full_prompt[:100]}...")
-
-            # Veo 3.1 API 호출
-            operation = self._veo_client.models.generate_videos(
-                model=settings.gemini_video_model,
-                prompt=full_prompt,
-                config=self._veo_types.GenerateVideosConfig(
-                    aspect_ratio=aspect_ratio,
-                ),
-            )
+            if reference_image is not None:
+                logger.info("Using image-to-video mode with reference image")
+                operation = self._veo_client.models.generate_videos(
+                    model=settings.gemini_video_model,
+                    prompt=full_prompt,
+                    image=reference_image,
+                    config=veo_config,
+                )
+            else:
+                logger.info("No valid reference image found, using text-to-video mode")
+                operation = self._veo_client.models.generate_videos(
+                    model=settings.gemini_video_model,
+                    prompt=full_prompt,
+                    config=veo_config,
+                )
 
             # 비디오 생성 완료까지 폴링
             poll_interval = 10  # 초
@@ -315,6 +351,74 @@ class GeminiService:
                 raise RateLimitException("Veo rate limit exceeded")
             logger.error(f"Veo API error: {e}")
             raise GeminiException(str(e))
+
+    def _extract_reference_image(self, media_files: list[bytes]):
+        """
+        업로드된 파일에서 첫 번째 유효한 이미지를 레퍼런스로 추출합니다.
+
+        Returns:
+            PIL Image object or None
+        """
+        from PIL import Image
+
+        for file_bytes in media_files:
+            try:
+                img = Image.open(io.BytesIO(file_bytes))
+                img.load()  # 이미지가 유효한지 확인
+                logger.info(f"Reference image found: {img.size}, mode={img.mode}")
+                # RGB로 변환 (RGBA, P 등 다른 모드 대응)
+                if img.mode not in ("RGB",):
+                    img = img.convert("RGB")
+                return img
+            except Exception:
+                continue
+
+        logger.warning("No valid image found in uploaded media")
+        return None
+
+    async def _analyze_media_for_video(self, media_files: list[bytes]) -> str:
+        """
+        업로드된 이미지들을 Gemini Vision으로 분석하여
+        영상 프롬프트에 사용할 설명을 생성합니다.
+        """
+        from PIL import Image
+
+        try:
+            contents = [
+                "Analyze these travel photos and describe them for video creation. "
+                "Focus on: "
+                "1) The people: their appearance, clothing, and what they're doing. "
+                "2) The location: scenery, landmarks, environment. "
+                "3) The mood and atmosphere. "
+                "Be specific and concise. Respond in English in 2-3 sentences."
+            ]
+
+            images_added = 0
+            for file_bytes in media_files[:5]:
+                try:
+                    img = Image.open(io.BytesIO(file_bytes))
+                    img.load()
+                    if img.mode not in ("RGB",):
+                        img = img.convert("RGB")
+                    contents.append(img)
+                    images_added += 1
+                except Exception:
+                    continue
+
+            if images_added == 0:
+                return "travel scenes and moments"
+
+            response = self._veo_client.models.generate_content(
+                model=settings.gemini_model,
+                contents=contents,
+            )
+
+            description = response.text or "travel scenes and moments"
+            return description.strip()
+
+        except Exception as e:
+            logger.warning(f"Image analysis for video failed: {e}")
+            return "travel scenes and moments"
 
     async def analyze_image(
         self,
