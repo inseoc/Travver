@@ -4,10 +4,12 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+import 'package:video_player/video_player.dart';
 import '../../app/theme.dart';
 import '../../models/trip.dart';
 import '../../providers/trip_provider.dart';
 import '../../services/api_service.dart';
+import '../../utils/video_helper.dart';
 
 /// 나만의 영상 화면
 /// - AI로 시네마틱 영상 생성
@@ -50,6 +52,11 @@ class _VideoCreatorScreenState extends State<VideoCreatorScreen> {
   Uint8List? _resultVideoBytes;
   String? _resultStyle;
 
+  // 영상 플레이어
+  VideoPlayerController? _videoController;
+  bool _isVideoReady = false;
+  bool _isSaving = false;
+
   final List<VideoStyle> _styles = [
     VideoStyle('cinematic', '시네마틱 여행', Icons.movie_creation),
     VideoStyle('vlog', '감성 브이로그', Icons.videocam),
@@ -74,6 +81,32 @@ class _VideoCreatorScreenState extends State<VideoCreatorScreen> {
     if (widget.tripId != null) {
       final tripProvider = context.read<TripProvider>();
       _trip = tripProvider.getTripById(widget.tripId!);
+    }
+  }
+
+  @override
+  void dispose() {
+    _videoController?.dispose();
+    super.dispose();
+  }
+
+  void _disposeVideoPlayer() {
+    _videoController?.dispose();
+    _videoController = null;
+    _isVideoReady = false;
+  }
+
+  Future<void> _initVideoPlayer() async {
+    if (_resultVideoBytes == null) return;
+    try {
+      _videoController = await createVideoController(_resultVideoBytes!);
+      await _videoController!.initialize();
+      _videoController!.setLooping(true);
+      if (mounted) {
+        setState(() => _isVideoReady = true);
+      }
+    } catch (e) {
+      debugPrint('Video player init error: $e');
     }
   }
 
@@ -711,10 +744,12 @@ class _VideoCreatorScreenState extends State<VideoCreatorScreen> {
 
       final base64Data = result['result_video_base64'] as String?;
       if (base64Data != null && base64Data.isNotEmpty) {
+        final bytes = base64Decode(base64Data);
         setState(() {
-          _resultVideoBytes = base64Decode(base64Data);
+          _resultVideoBytes = bytes;
           _resultStyle = result['style'] as String?;
         });
+        await _initVideoPlayer();
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -757,6 +792,7 @@ class _VideoCreatorScreenState extends State<VideoCreatorScreen> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
+            _disposeVideoPlayer();
             setState(() {
               _resultVideoBytes = null;
               _resultStyle = null;
@@ -767,41 +803,29 @@ class _VideoCreatorScreenState extends State<VideoCreatorScreen> {
       body: Column(
         children: [
           Expanded(
-            child: Center(
+            child: SingleChildScrollView(
               child: Padding(
-                padding: const EdgeInsets.all(AppDimens.spacing24),
+                padding: const EdgeInsets.all(AppDimens.spacing16),
                 child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // 성공 아이콘
-                    Container(
-                      width: 100,
-                      height: 100,
-                      decoration: BoxDecoration(
-                        color: AppColors.success.withOpacity(0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.check_circle_outline,
-                        size: 56,
-                        color: AppColors.success,
-                      ),
-                    ),
-                    const SizedBox(height: AppDimens.spacing24),
+                    // 영상 미리보기 플레이어
+                    _buildVideoPlayer(),
+
+                    const SizedBox(height: AppDimens.spacing16),
 
                     Text(
-                      '영상이 완성되었습니다!',
+                      '${_trip?.destination ?? ""} ${_getStyleLabel(_resultStyle)}',
                       style: AppTypography.subhead1,
                     ),
-                    const SizedBox(height: AppDimens.spacing8),
+                    const SizedBox(height: AppDimens.spacing4),
                     Text(
-                      '${_trip?.destination ?? ""} ${_getStyleLabel(_resultStyle)}',
-                      style: AppTypography.body1.copyWith(
+                      '영상이 완성되었습니다',
+                      style: AppTypography.body2.copyWith(
                         color: AppColors.textSecondary,
                       ),
                     ),
 
-                    const SizedBox(height: AppDimens.spacing24),
+                    const SizedBox(height: AppDimens.spacing16),
 
                     // 영상 정보 카드
                     Container(
@@ -856,9 +880,18 @@ class _VideoCreatorScreenState extends State<VideoCreatorScreen> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
-                      onPressed: _saveVideoToDevice,
-                      icon: const Icon(Icons.download),
-                      label: const Text('기기에 저장'),
+                      onPressed: _isSaving ? null : _saveVideoToDevice,
+                      icon: _isSaving
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(Icons.download),
+                      label: Text(_isSaving ? '저장 중...' : '기기에 저장'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.info,
                       ),
@@ -869,6 +902,7 @@ class _VideoCreatorScreenState extends State<VideoCreatorScreen> {
                     width: double.infinity,
                     child: OutlinedButton.icon(
                       onPressed: () {
+                        _disposeVideoPlayer();
                         setState(() {
                           _resultVideoBytes = null;
                           _resultStyle = null;
@@ -883,6 +917,95 @@ class _VideoCreatorScreenState extends State<VideoCreatorScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildVideoPlayer() {
+    if (!_isVideoReady || _videoController == null) {
+      // 영상 로딩 중
+      return Container(
+        width: double.infinity,
+        height: 220,
+        decoration: BoxDecoration(
+          color: Colors.black,
+          borderRadius: BorderRadius.circular(AppDimens.radiusMedium),
+        ),
+        child: const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(color: Colors.white),
+              SizedBox(height: 12),
+              Text(
+                '영상을 준비하고 있습니다...',
+                style: TextStyle(color: Colors.white70, fontSize: 13),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(AppDimens.radiusMedium),
+      child: Container(
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: Colors.black,
+          borderRadius: BorderRadius.circular(AppDimens.radiusMedium),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // 영상 영역
+            GestureDetector(
+              onTap: () {
+                setState(() {
+                  if (_videoController!.value.isPlaying) {
+                    _videoController!.pause();
+                  } else {
+                    _videoController!.play();
+                  }
+                });
+              },
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  AspectRatio(
+                    aspectRatio: _videoController!.value.aspectRatio,
+                    child: VideoPlayer(_videoController!),
+                  ),
+                  // 재생/일시정지 오버레이
+                  if (!_videoController!.value.isPlaying)
+                    Container(
+                      width: 64,
+                      height: 64,
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.5),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.play_arrow,
+                        size: 40,
+                        color: Colors.white,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            // 프로그레스 바
+            VideoProgressIndicator(
+              _videoController!,
+              allowScrubbing: true,
+              colors: const VideoProgressColors(
+                playedColor: AppColors.info,
+                bufferedColor: Colors.white24,
+                backgroundColor: Colors.white10,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -906,14 +1029,37 @@ class _VideoCreatorScreenState extends State<VideoCreatorScreen> {
   Future<void> _saveVideoToDevice() async {
     if (_resultVideoBytes == null) return;
 
-    // TODO: path_provider + share_plus 패키지 추가 후 실제 저장/공유 구현
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('기기 저장 기능은 준비 중입니다'),
-          backgroundColor: AppColors.warning,
-        ),
-      );
+    setState(() => _isSaving = true);
+
+    try {
+      final destination = _trip?.destination ?? 'travver';
+      final style = _resultStyle ?? 'video';
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final filename = '${destination}_${style}_$timestamp.mp4';
+
+      await saveVideoToDevice(_resultVideoBytes!, filename);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(kIsWeb ? '다운로드가 시작되었습니다' : '갤러리에 저장되었습니다'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('저장 실패: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
     }
   }
 }
