@@ -85,15 +85,15 @@ class GeminiService:
     async def decorate_photo(
         self,
         image_data: bytes,
-        style: str,
+        prompt: str,
         image_format: str = "jpeg",
     ) -> bytes:
         """
-        Apply artistic style to a photo using Gemini 2.5 Flash Image.
+        Apply artistic transformation to a photo using Gemini based on user prompt.
 
         Args:
             image_data: Raw image bytes
-            style: Style to apply (watercolor, oil_painting, etc.)
+            prompt: User-provided transformation prompt
             image_format: Image format (jpeg, png)
 
         Returns:
@@ -110,34 +110,14 @@ class GeminiService:
             logger.warning("Gemini image generation not available, returning original image")
             return image_data
 
-        style_prompts = {
-            "watercolor": "Transform this photo into a beautiful watercolor painting style. "
-                         "Use soft, flowing colors with visible brush strokes and "
-                         "gentle color bleeding effects.",
-            "oil_painting": "Transform this photo into a classic oil painting style. "
-                           "Use rich, textured brush strokes with bold colors and "
-                           "visible paint layering.",
-            "sketch": "Transform this photo into a detailed pencil sketch. "
-                     "Use fine lines, cross-hatching, and shading techniques "
-                     "to create depth and texture.",
-            "vintage": "Transform this photo into a vintage film style. "
-                      "Apply warm sepia tones, slight vignetting, "
-                      "and subtle grain for a nostalgic feel.",
-            "movie_poster": "Transform this photo into a dramatic movie poster style. "
-                           "Use high contrast, bold colors, and cinematic lighting "
-                           "with a dramatic composition.",
-            "pop_art": "Transform this photo into a vibrant pop art style. "
-                      "Use bold, flat colors, Ben-Day dots, and comic-book "
-                      "inspired high contrast.",
-        }
-
-        prompt = style_prompts.get(
-            style,
-            f"Transform this photo into a {style} artistic style.",
+        full_prompt = (
+            f"Transform this photo based on the following instruction: {prompt}. "
+            f"Apply the described style or transformation to the image while "
+            f"preserving the main subject and composition."
         )
 
         try:
-            logger.info(f"Decorating photo with style: {style}")
+            logger.info(f"Decorating photo with prompt: {prompt}")
 
             # PIL로 이미지 변환
             from PIL import Image
@@ -146,7 +126,7 @@ class GeminiService:
             # Gemini 2.5 Flash Image 모델로 이미지 생성
             response = self._veo_client.models.generate_content(
                 model=settings.gemini_image_model,
-                contents=[prompt, input_image],
+                contents=[full_prompt, input_image],
             )
 
             # 응답에서 이미지 추출
@@ -169,7 +149,7 @@ class GeminiService:
                         except Exception:
                             pass  # 변환 실패 시 원본 bytes 사용
 
-                    logger.info(f"Photo decoration completed for style: {style}")
+                    logger.info(f"Photo decoration completed with prompt: {prompt}")
                     return result_bytes
 
             # 이미지가 없으면 원본 반환

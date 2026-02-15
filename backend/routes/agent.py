@@ -1,13 +1,12 @@
-"""Agent API routes - AI 일정 생성 및 컨설턴트."""
+"""Agent API routes - AI 일정 생성."""
 
 from fastapi import APIRouter, HTTPException, status
-from fastapi.responses import StreamingResponse
 
 from core.logger import logger
 from core.exceptions import AIServiceException, ValidationException
-from models.requests import TravelPlanRequest, ConsultantRequest
-from models.responses import TravelPlanResponse, ConsultantResponse, ErrorResponse
-from agents import travel_planner_agent, travel_consultant_agent
+from models.requests import TravelPlanRequest, ModifyDayRequest
+from models.responses import TravelPlanResponse, ModifyDayResponse, ErrorResponse
+from agents import travel_planner_agent
 from database import db
 from database.repository import TripRepository
 
@@ -86,47 +85,65 @@ async def generate_travel_plan(request: TravelPlanRequest) -> TravelPlanResponse
 
 
 @router.post(
-    "/consultant",
-    response_model=ConsultantResponse,
+    "/modify-day",
+    response_model=ModifyDayResponse,
     responses={
         400: {"model": ErrorResponse, "description": "잘못된 요청"},
         500: {"model": ErrorResponse, "description": "서버 오류"},
     },
-    summary="AI 컨설턴트 채팅",
-    description="Travel Consultant Agent와 대화합니다.",
+    summary="AI 일정 수정 (Day 단위)",
+    description="특정 Day의 일정을 사용자 프롬프트 기반으로 수정합니다.",
 )
-async def chat_with_consultant(request: ConsultantRequest) -> ConsultantResponse:
+async def modify_day_plan(request: ModifyDayRequest) -> ModifyDayResponse:
     """
-    AI 컨설턴트와 대화합니다.
+    특정 Day의 일정을 AI로 수정합니다.
 
-    - **message**: 사용자 메시지
-    - **history**: 이전 대화 기록
-    - **trip_id**: 현재 여행 ID (선택)
+    - **trip_id**: 여행 ID
+    - **day**: 수정할 Day 번호
+    - **prompt**: 수정 요청 프롬프트 (50자 이내)
     """
-    logger.info(f"Consultant request: {request.message[:50]}...")
+    logger.info(f"Modify day request: trip={request.trip_id}, day={request.day}, prompt={request.prompt}")
 
     try:
-        # 여행 컨텍스트 조회 (trip_id가 있는 경우 - SQLite)
-        trip_context = None
-        if request.trip_id:
-            repo = TripRepository(db.connection)
-            trip = await repo.get_by_id(request.trip_id)
-            if trip:
-                trip_context = trip.model_dump()
-            else:
-                trip_context = {"trip_id": request.trip_id}
+        # 여행 정보 조회
+        repo = TripRepository(db.connection)
+        trip = await repo.get_by_id(request.trip_id)
+        if not trip:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"error": "NOT_FOUND", "message": "여행을 찾을 수 없습니다."},
+            )
 
-        result = await travel_consultant_agent.chat(
-            message=request.message,
-            history=[h.model_dump() for h in request.history],
-            trip_context=trip_context,
+        # 해당 Day 일정 수정
+        modified_plan = await travel_planner_agent.modify_day_plan(
+            trip=trip,
+            day=request.day,
+            prompt=request.prompt,
         )
 
-        return ConsultantResponse(
+        # DB에 수정된 여행 저장
+        try:
+            # trip의 daily_plans에서 해당 day를 교체
+            updated_plans = []
+            for plan in trip.daily_plans:
+                if plan.day == request.day:
+                    updated_plans.append(modified_plan)
+                else:
+                    updated_plans.append(plan)
+            trip.daily_plans = updated_plans
+            await repo.update(trip)
+            logger.info(f"Updated trip {trip.id} day {request.day}")
+        except Exception as save_err:
+            logger.warning(f"Failed to update trip in database: {save_err}")
+
+        return ModifyDayResponse(
             success=True,
-            response=result["response"],
-            tools_used=result.get("tools_used", []),
+            daily_plan=modified_plan,
+            message=f"Day {request.day} 일정이 수정되었습니다.",
         )
+
+    except HTTPException:
+        raise
 
     except AIServiceException as e:
         logger.error(f"AI service error: {e.message}")
@@ -136,55 +153,8 @@ async def chat_with_consultant(request: ConsultantRequest) -> ConsultantResponse
         )
 
     except Exception as e:
-        logger.exception(f"Unexpected error in consultant: {e}")
+        logger.exception(f"Unexpected error in modify day: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"error": "INTERNAL_ERROR", "message": "상담 중 오류가 발생했습니다."},
+            detail={"error": "INTERNAL_ERROR", "message": "일정 수정 중 오류가 발생했습니다."},
         )
-
-
-@router.post(
-    "/consultant/stream",
-    summary="AI 컨설턴트 스트리밍 채팅",
-    description="Travel Consultant Agent와 스트리밍 방식으로 대화합니다.",
-)
-async def chat_with_consultant_stream(request: ConsultantRequest):
-    """
-    AI 컨설턴트와 스트리밍 방식으로 대화합니다.
-
-    Server-Sent Events (SSE) 형식으로 응답합니다.
-    """
-    logger.info(f"Consultant stream request: {request.message[:50]}...")
-
-    async def generate():
-        try:
-            trip_context = None
-            if request.trip_id:
-                repo = TripRepository(db.connection)
-                trip = await repo.get_by_id(request.trip_id)
-                if trip:
-                    trip_context = trip.model_dump()
-                else:
-                    trip_context = {"trip_id": request.trip_id}
-
-            async for chunk in travel_consultant_agent.chat_stream(
-                message=request.message,
-                history=[h.model_dump() for h in request.history],
-                trip_context=trip_context,
-            ):
-                yield f"data: {chunk}\n\n"
-
-            yield "data: [DONE]\n\n"
-
-        except Exception as e:
-            logger.error(f"Streaming error: {e}")
-            yield f"data: [ERROR] {str(e)}\n\n"
-
-    return StreamingResponse(
-        generate(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-        },
-    )

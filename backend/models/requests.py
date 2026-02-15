@@ -74,67 +74,36 @@ class TravelPlanRequest(BaseModel):
         }
 
 
-class ChatMessage(BaseModel):
-    """채팅 메시지."""
-    role: str = Field(..., pattern="^(user|assistant|system)$", description="메시지 역할")
-    content: str = Field(..., min_length=1, max_length=4000, description="메시지 내용")
-
-
-class ConsultantRequest(BaseModel):
-    """AI 컨설턴트 요청."""
-    message: str = Field(
+class ModifyDayRequest(BaseModel):
+    """Day 단위 일정 수정 요청."""
+    trip_id: str = Field(..., description="여행 ID")
+    day: int = Field(..., ge=1, le=30, description="수정할 Day 번호")
+    prompt: str = Field(
         ...,
         min_length=1,
-        max_length=2000,
-        description="사용자 메시지",
+        max_length=50,
+        description="수정 요청 프롬프트 (50자 이내)",
     )
-    history: List[ChatMessage] = Field(
-        default_factory=list,
-        description="대화 히스토리",
-    )
-    trip_id: Optional[str] = Field(
-        default=None,
-        description="현재 여행 ID (컨텍스트용)",
-    )
-
-    @field_validator("history")
-    @classmethod
-    def validate_history(cls, v: List[ChatMessage]) -> List[ChatMessage]:
-        """히스토리 길이 제한."""
-        if len(v) > 50:
-            # 최근 50개만 유지
-            return v[-50:]
-        return v
 
     class Config:
         json_schema_extra = {
             "example": {
-                "message": "오늘 저녁 근처 라멘 맛집 추천해줘",
-                "history": [],
                 "trip_id": "trip_123",
+                "day": 2,
+                "prompt": "맛집 위주로 변경해줘",
             }
         }
 
 
 class PhotoDecorateRequest(BaseModel):
     """사진 꾸미기 요청."""
-    style: str = Field(
+    prompt: str = Field(
         ...,
-        description="스타일 (watercolor, oil_painting, sketch, vintage, movie_poster, pop_art)",
+        min_length=1,
+        max_length=30,
+        description="이미지 생성 프롬프트 (30자 이내)",
     )
     trip_id: Optional[str] = Field(default=None, description="여행 ID")
-
-    @field_validator("style")
-    @classmethod
-    def validate_style(cls, v: str) -> str:
-        """스타일 유효성 검증."""
-        valid_styles = [
-            "watercolor", "oil_painting", "sketch",
-            "vintage", "movie_poster", "pop_art"
-        ]
-        if v not in valid_styles:
-            raise ValueError(f"유효하지 않은 스타일입니다. 가능한 값: {valid_styles}")
-        return v
 
 
 class VideoCreateRequest(BaseModel):

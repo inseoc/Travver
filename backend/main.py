@@ -60,7 +60,6 @@ app = FastAPI(
 
 ### 주요 기능
 - 🤖 **AI 여행 일정 생성**: Travel Planner Agent
-- 💬 **AI 여행 컨설턴트**: Travel Consultant Agent
 - 📸 **추억 남기기**: AI 사진 꾸미기 & 영상 생성
 - 📋 **여행 관리**: CRUD 기능
 
@@ -214,8 +213,7 @@ async def api_status() -> Dict[str, Any]:
         "endpoints": {
             "agent": {
                 "travel_plan": "/api/v1/agent/travel-plan",
-                "consultant": "/api/v1/agent/consultant",
-                "consultant_stream": "/api/v1/agent/consultant/stream",
+                "modify_day": "/api/v1/agent/modify-day",
             },
             "travel": {
                 "trips": "/api/v1/travel/trips",
@@ -224,7 +222,6 @@ async def api_status() -> Dict[str, Any]:
             "memories": {
                 "photo": "/api/v1/memories/photo",
                 "video": "/api/v1/memories/video",
-                "photo_styles": "/api/v1/memories/styles/photo",
                 "video_styles": "/api/v1/memories/styles/video",
             },
         },

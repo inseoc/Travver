@@ -5,7 +5,7 @@ import '../screens/onboarding/onboarding_screen.dart';
 import '../screens/home/home_screen.dart';
 import '../screens/plan_input/plan_input_screen.dart';
 import '../screens/plan_result/plan_result_screen.dart';
-import '../screens/ai_consultant/ai_consultant_screen.dart';
+
 import '../screens/my_trips/my_trips_screen.dart';
 import '../screens/memories/memories_screen.dart';
 import '../screens/memories/photo_decorator_screen.dart';
@@ -21,7 +21,7 @@ class AppRoutes {
   static const String home = '/home';
   static const String planInput = '/plan/input';
   static const String planResult = '/plan/result';
-  static const String aiConsultant = '/consultant';
+
   static const String myTrips = '/trips';
   static const String tripDetail = '/trips/:tripId';
   static const String memories = '/memories';
@@ -78,13 +78,6 @@ class AppRouter {
           final tripId = state.extra as String?;
           return PlanResultScreen(tripId: tripId);
         },
-      ),
-
-      // AI 컨설턴트
-      GoRoute(
-        path: AppRoutes.aiConsultant,
-        name: 'aiConsultant',
-        builder: (context, state) => const AiConsultantScreen(),
       ),
 
       // 내 여행 목록

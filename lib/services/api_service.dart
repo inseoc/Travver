@@ -97,77 +97,30 @@ class ApiService {
     }
   }
 
-  /// AI 컨설턴트 채팅 요청
-  Future<String> sendChatMessage({
-    required String message,
-    required List<ChatMessage> history,
-    String? tripId,
+  /// Day 단위 일정 수정 요청
+  Future<DailyPlan> modifyDayPlan({
+    required String tripId,
+    required int day,
+    required String prompt,
   }) async {
     try {
       final response = await _dio.post(
-        '/agent/consultant',
+        '/v1/agent/modify-day',
         data: {
-          'message': message,
-          'history': history.map((m) => m.toJson()).toList(),
           'trip_id': tripId,
+          'day': day,
+          'prompt': prompt,
         },
-      );
-
-      return response.data['response'] as String;
-    } on DioException catch (e) {
-      throw _handleError(e);
-    }
-  }
-
-  /// 스트리밍 채팅 요청 (Server-Sent Events)
-  Stream<String> streamChatMessage({
-    required String message,
-    required List<ChatMessage> history,
-    String? tripId,
-  }) async* {
-    try {
-      final response = await _dio.post(
-        '/agent/consultant/stream',
-        data: {
-          'message': message,
-          'history': history.map((m) => m.toJson()).toList(),
-          'trip_id': tripId,
-        },
-        options: Options(
-          responseType: ResponseType.stream,
-        ),
-      );
-
-      final stream = response.data.stream as Stream<List<int>>;
-      await for (final chunk in stream) {
-        final text = String.fromCharCodes(chunk);
-        yield text;
-      }
-    } on DioException catch (e) {
-      throw _handleError(e);
-    }
-  }
-
-  /// 사진 꾸미기 API
-  Future<String> decoratePhoto({
-    required String imagePath,
-    required String style,
-  }) async {
-    try {
-      final formData = FormData.fromMap({
-        'image': await MultipartFile.fromFile(imagePath),
-        'style': style,
-      });
-
-      final response = await _dio.post(
-        '/v1/memories/photo',
-        data: formData,
         options: Options(
           receiveTimeout: const Duration(minutes: 2),
         ),
       );
 
-      return response.data['result_url'] as String;
+      final responseData = response.data;
+      if (responseData['daily_plan'] != null) {
+        return DailyPlan.fromJson(responseData['daily_plan']);
+      }
+      throw Exception('일정 수정 응답이 올바르지 않습니다.');
     } on DioException catch (e) {
       throw _handleError(e);
     }
@@ -178,7 +131,7 @@ class ApiService {
   Future<Map<String, dynamic>> decoratePhotoBytes({
     required Uint8List imageBytes,
     required String fileName,
-    required String style,
+    required String prompt,
     String? tripId,
   }) async {
     try {
@@ -192,7 +145,7 @@ class ApiService {
                 : 'image/jpeg',
           ),
         ),
-        'style': style,
+        'prompt': prompt,
         if (tripId != null) 'trip_id': tripId,
       });
 
@@ -313,7 +266,7 @@ class ApiService {
   Future<Map<String, dynamic>> saveDecoratedPhoto({
     required String tripId,
     required String originalFilename,
-    required String style,
+    required String prompt,
     required String resultImageBase64,
     String resultMimeType = 'image/jpeg',
   }) async {
@@ -321,7 +274,7 @@ class ApiService {
       final formData = FormData.fromMap({
         'trip_id': tripId,
         'original_filename': originalFilename,
-        'style': style,
+        'style': prompt,
         'result_image_base64': resultImageBase64,
         'result_mime_type': resultMimeType,
       });

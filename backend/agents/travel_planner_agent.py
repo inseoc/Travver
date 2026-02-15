@@ -543,6 +543,94 @@ class TravelPlannerAgent:
 
         return daily_plans
 
+    async def modify_day_plan(
+        self,
+        trip: "Trip",
+        day: int,
+        prompt: str,
+    ) -> "DailyPlan":
+        """
+        특정 Day의 일정을 사용자 프롬프트를 기반으로 수정합니다.
+
+        Args:
+            trip: 여행 정보
+            day: 수정할 Day 번호
+            prompt: 사용자 수정 요청 (50자 이내)
+
+        Returns:
+            수정된 DailyPlan 객체
+        """
+        logger.info(f"Modifying day {day} plan for trip {trip.id}: {prompt}")
+
+        # 해당 Day의 기존 일정 추출
+        existing_plan = None
+        for plan in trip.daily_plans:
+            if plan.day == day:
+                existing_plan = plan
+                break
+
+        if existing_plan is None:
+            raise AIServiceException(f"Day {day} 일정을 찾을 수 없습니다.")
+
+        # 기존 일정을 JSON으로 변환
+        existing_schedules_text = ""
+        for sched in existing_plan.schedules:
+            existing_schedules_text += (
+                f"- {sched.time} {sched.place} ({sched.category.value}): "
+                f"{sched.description}, {sched.duration_min}분, {sched.estimated_cost}원, "
+                f"좌표({sched.location.lat}, {sched.location.lng})\n"
+            )
+
+        modify_system_prompt = """전문 여행 플래너 AI. 기존 일정을 사용자 요청에 맞게 수정하여 JSON으로 출력.
+
+규칙:
+- 하루 4-6개 장소, 09~22시, 식사 3끼 포함
+- 동선 최적화: 같은 권역/지역끼리 그룹핑
+- 반드시 실제 존재하는 구체적 장소명 사용
+- 사용자 수정 요청을 최대한 반영
+
+카테고리: food, sightseeing, accommodation, activity, shopping, rest
+
+출력 형식:
+- time: "HH:MM" 형식. 시간 범위 금지.
+- duration_min: 분 단위 정수.
+
+중요: 반드시 JSON만 출력. 설명 금지.
+
+출력: JSON {day, date, theme, schedules: [{order, time, place, category, duration_min, estimated_cost, description, location: {lat, lng}}]}"""
+
+        user_prompt = f"""Day {day} ({existing_plan.date}) 일정을 다음 요청에 맞게 수정해주세요.
+
+목적지: {trip.destination}
+수정 요청: {prompt}
+
+현재 일정:
+{existing_schedules_text}
+
+수정된 일정을 JSON으로 출력해주세요."""
+
+        if openai_service.is_available():
+            try:
+                response = await openai_service.chat_completion(
+                    messages=[
+                        {"role": "system", "content": modify_system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    tools=None,
+                    response_format={"type": "json_object"},
+                )
+
+                content = response["content"]
+                if content:
+                    plans = self._parse_daily_plans(content, existing_plan.date)
+                    if plans:
+                        return plans[0]
+
+            except Exception as e:
+                logger.error(f"OpenAI day modification failed: {e}")
+
+        raise AIServiceException("일정 수정에 실패했습니다. 다시 시도해주세요.")
+
 
 # Singleton instance
 travel_planner_agent = TravelPlannerAgent()
