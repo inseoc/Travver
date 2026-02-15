@@ -5,6 +5,7 @@ import 'app/theme.dart';
 import 'app/routes.dart';
 import 'providers/trip_provider.dart';
 import 'providers/app_provider.dart';
+import 'services/storage_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,6 +24,10 @@ void main() async {
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
+
+  // SQLite 데이터베이스 초기화 및 마이그레이션
+  final storageService = StorageService();
+  await storageService.initialize();
 
   runApp(const TravverApp());
 }

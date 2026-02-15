@@ -1,8 +1,10 @@
 import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import '../services/database_service.dart';
 
-/// 앱 전역 상태 관리 Provider
+/// 앱 전역 상태 관리 Provider (SQLite 기반)
 class AppProvider extends ChangeNotifier {
+  final DatabaseService _db = DatabaseService();
+
   bool _isFirstLaunch = true;
   bool _isLoading = false;
   String? _userName;
@@ -17,24 +19,22 @@ class AppProvider extends ChangeNotifier {
   }
 
   Future<void> _loadPreferences() async {
-    final prefs = await SharedPreferences.getInstance();
-    _isFirstLaunch = prefs.getBool('isFirstLaunch') ?? true;
-    _userName = prefs.getString('userName');
+    final firstLaunch = await _db.getConfig('is_first_launch');
+    _isFirstLaunch = firstLaunch == null || firstLaunch == 'true';
+    _userName = await _db.getConfig('user_name');
     notifyListeners();
   }
 
   /// 온보딩 완료 처리
   Future<void> completeOnboarding() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('isFirstLaunch', false);
+    await _db.setConfig('is_first_launch', 'false');
     _isFirstLaunch = false;
     notifyListeners();
   }
 
   /// 사용자 이름 설정
   Future<void> setUserName(String name) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('userName', name);
+    await _db.setConfig('user_name', name);
     _userName = name;
     notifyListeners();
   }
@@ -47,8 +47,8 @@ class AppProvider extends ChangeNotifier {
 
   /// 앱 데이터 초기화 (디버그용)
   Future<void> resetApp() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.clear();
+    await _db.setConfig('is_first_launch', 'true');
+    await _db.setConfig('user_name', '');
     _isFirstLaunch = true;
     _userName = null;
     notifyListeners();

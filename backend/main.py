@@ -12,6 +12,7 @@ from core.config import settings
 from core.logger import logger
 from core.exceptions import TravverException, ValidationException, AIServiceException
 from routes import agent_router, travel_router, memories_router
+from database import db
 
 
 @asynccontextmanager
@@ -40,9 +41,14 @@ async def lifespan(app: FastAPI):
     else:
         logger.warning("✗ Google Places API not configured - using mock data")
 
+    # Initialize SQLite database
+    await db.connect()
+    logger.info("✓ SQLite database initialized")
+
     yield
 
     # Shutdown
+    await db.disconnect()
     logger.info("Shutting down Travver Backend")
 
 
@@ -194,6 +200,7 @@ async def health_check() -> Dict[str, Any]:
             "openai": "configured" if settings.openai_api_key else "not_configured",
             "gemini": "configured" if settings.effective_gemini_api_key else "not_configured",
             "places": "configured" if settings.google_places_api_key else "not_configured",
+            "database": "connected" if db._connection else "disconnected",
         },
     }
 

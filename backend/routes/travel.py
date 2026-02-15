@@ -1,4 +1,4 @@
-"""Travel CRUD API routes."""
+"""Travel CRUD API routes (SQLite 기반)."""
 
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, status, Query
@@ -6,11 +6,15 @@ from fastapi import APIRouter, HTTPException, status, Query
 from core.logger import logger
 from models.travel import Trip, TripStatus
 from models.responses import ErrorResponse
+from database import db
+from database.repository import TripRepository
 
 router = APIRouter(prefix="/travel", tags=["Travel"])
 
-# In-memory storage (실제로는 DB 사용)
-_trips_db: dict[str, Trip] = {}
+
+def _get_repo() -> TripRepository:
+    """Get TripRepository with current DB connection."""
+    return TripRepository(db.connection)
 
 
 @router.get(
@@ -31,15 +35,10 @@ async def get_trips(
     - **limit**: 최대 조회 개수
     - **offset**: 페이지네이션 오프셋
     """
-    trips = list(_trips_db.values())
-
-    if status_filter:
-        trips = [t for t in trips if t.status == status_filter]
-
-    # 최신순 정렬
-    trips.sort(key=lambda t: t.created_at, reverse=True)
-
-    return trips[offset:offset + limit]
+    repo = _get_repo()
+    return await repo.get_all(
+        status_filter=status_filter, limit=limit, offset=offset
+    )
 
 
 @router.get(
@@ -55,13 +54,14 @@ async def get_trip(trip_id: str) -> Trip:
 
     - **trip_id**: 여행 ID
     """
-    if trip_id not in _trips_db:
+    repo = _get_repo()
+    trip = await repo.get_by_id(trip_id)
+    if trip is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"error": "NOT_FOUND", "message": "여행을 찾을 수 없습니다."},
         )
-
-    return _trips_db[trip_id]
+    return trip
 
 
 @router.post(
@@ -79,8 +79,8 @@ async def create_trip(trip: Trip) -> Trip:
     """
     logger.info(f"Saving trip: {trip.id} - {trip.destination}")
 
-    _trips_db[trip.id] = trip
-    return trip
+    repo = _get_repo()
+    return await repo.create(trip)
 
 
 @router.put(
@@ -97,7 +97,9 @@ async def update_trip(trip_id: str, trip: Trip) -> Trip:
     - **trip_id**: 여행 ID
     - **trip**: 수정할 여행 정보
     """
-    if trip_id not in _trips_db:
+    repo = _get_repo()
+    existing = await repo.get_by_id(trip_id)
+    if existing is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"error": "NOT_FOUND", "message": "여행을 찾을 수 없습니다."},
@@ -105,9 +107,7 @@ async def update_trip(trip_id: str, trip: Trip) -> Trip:
 
     logger.info(f"Updating trip: {trip_id}")
 
-    trip.id = trip_id  # ID 유지
-    _trips_db[trip_id] = trip
-    return trip
+    return await repo.update(trip_id, trip)
 
 
 @router.delete(
@@ -123,15 +123,15 @@ async def delete_trip(trip_id: str):
 
     - **trip_id**: 여행 ID
     """
-    if trip_id not in _trips_db:
+    repo = _get_repo()
+    deleted = await repo.delete(trip_id)
+    if not deleted:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"error": "NOT_FOUND", "message": "여행을 찾을 수 없습니다."},
         )
 
-    logger.info(f"Deleting trip: {trip_id}")
-
-    del _trips_db[trip_id]
+    logger.info(f"Deleted trip: {trip_id}")
 
 
 @router.patch(
@@ -148,14 +148,13 @@ async def update_trip_status(trip_id: str, new_status: TripStatus) -> Trip:
     - **trip_id**: 여행 ID
     - **new_status**: 새 상태 (upcoming, ongoing, completed)
     """
-    if trip_id not in _trips_db:
+    repo = _get_repo()
+    trip = await repo.update_status(trip_id, new_status)
+    if trip is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"error": "NOT_FOUND", "message": "여행을 찾을 수 없습니다."},
         )
 
-    logger.info(f"Updating trip status: {trip_id} -> {new_status}")
-
-    trip = _trips_db[trip_id]
-    trip.status = new_status
+    logger.info(f"Updated trip status: {trip_id} -> {new_status}")
     return trip
