@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:typed_data';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
@@ -189,9 +188,7 @@ class _PhotoDecoratorScreenState extends State<PhotoDecoratorScreen> {
                 shape: BoxShape.circle,
               ),
               child: Icon(
-                kIsWeb
-                    ? Icons.upload_file
-                    : Icons.add_photo_alternate_outlined,
+                Icons.add_photo_alternate_outlined,
                 size: 40,
                 color: AppColors.accent,
               ),
@@ -567,7 +564,7 @@ class _PhotoDecoratorScreenState extends State<PhotoDecoratorScreen> {
           original: _SelectedPhoto(
             name: file.name,
             bytes: bytes,
-            path: kIsWeb ? null : file.path,
+            path: file.path,
           ),
         ));
       }

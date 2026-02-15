@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:typed_data';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
@@ -14,7 +13,6 @@ import '../../utils/video_helper.dart';
 /// 나만의 영상 화면
 /// - AI로 시네마틱 영상 생성
 /// - Google Gemini Veo 3.1 사용
-/// - 모바일: 갤러리에서 미디어 선택, 웹: 파일 업로드
 class VideoCreatorScreen extends StatefulWidget {
   final String? tripId;
 
@@ -224,44 +222,10 @@ class _VideoCreatorScreenState extends State<VideoCreatorScreen> {
         ),
         const SizedBox(height: AppDimens.spacing8),
         Text(
-          kIsWeb
-              ? '이미지 또는 동영상 파일을 업로드하세요 (최대 20개)'
-              : '${_trip!.destination} 여행 기간(${_trip!.period.displayString})에 촬영된 갤러리 미디어만 선택할 수 있습니다',
+          '${_trip!.destination} 여행 기간(${_trip!.period.displayString})에 촬영된 갤러리 미디어만 선택할 수 있습니다',
           style: AppTypography.caption,
         ),
         const SizedBox(height: AppDimens.spacing12),
-
-        // 미디어 선택 버튼 (웹: 사진/영상 분리)
-        if (kIsWeb) ...[
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: _selectedMedia.length < 20 ? _selectPhotosFromPicker : null,
-                  icon: const Icon(Icons.photo_outlined, size: 18),
-                  label: const Text('사진 추가'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.info,
-                    side: BorderSide(color: AppColors.info.withOpacity(0.5)),
-                  ),
-                ),
-              ),
-              const SizedBox(width: AppDimens.spacing8),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: _selectedMedia.length < 20 ? _selectVideoFromPicker : null,
-                  icon: const Icon(Icons.videocam_outlined, size: 18),
-                  label: const Text('영상 추가'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.info,
-                    side: BorderSide(color: AppColors.info.withOpacity(0.5)),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppDimens.spacing12),
-        ],
 
         // 미디어 그리드
         Container(
@@ -295,14 +259,14 @@ class _VideoCreatorScreenState extends State<VideoCreatorScreen> {
                 shape: BoxShape.circle,
               ),
               child: Icon(
-                kIsWeb ? Icons.upload_file : Icons.add_a_photo_outlined,
+                Icons.add_a_photo_outlined,
                 size: 28,
                 color: AppColors.info,
               ),
             ),
             const SizedBox(height: AppDimens.spacing8),
             Text(
-              kIsWeb ? '클릭하여 미디어 업로드' : '미디어를 선택하세요',
+              '미디어를 선택하세요',
               style: AppTypography.body1.copyWith(color: AppColors.info),
             ),
           ],
@@ -402,7 +366,7 @@ class _VideoCreatorScreenState extends State<VideoCreatorScreen> {
             );
           },
         ),
-        if (_selectedMedia.length < 20 && !kIsWeb)
+        if (_selectedMedia.length < 20)
           Positioned(
             right: AppDimens.spacing8,
             bottom: AppDimens.spacing8,
@@ -662,7 +626,7 @@ class _VideoCreatorScreenState extends State<VideoCreatorScreen> {
         media.add(_SelectedMedia(
           name: file.name,
           bytes: bytes,
-          path: kIsWeb ? null : file.path,
+          path: file.path,
           isVideo: false,
         ));
       }
@@ -675,45 +639,6 @@ class _VideoCreatorScreenState extends State<VideoCreatorScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('사진 선택 실패: $e'),
-            backgroundColor: AppColors.error,
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _selectVideoFromPicker() async {
-    final remaining = 20 - _selectedMedia.length;
-    if (remaining <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('최대 20개까지 선택할 수 있습니다'),
-          backgroundColor: AppColors.warning,
-        ),
-      );
-      return;
-    }
-
-    try {
-      final XFile? file = await _picker.pickVideo(source: ImageSource.gallery);
-
-      if (file == null) return;
-
-      final bytes = await file.readAsBytes();
-
-      setState(() {
-        _selectedMedia.add(_SelectedMedia(
-          name: file.name,
-          bytes: bytes,
-          path: kIsWeb ? null : file.path,
-          isVideo: true,
-        ));
-      });
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('영상 선택 실패: $e'),
             backgroundColor: AppColors.error,
           ),
         );
@@ -1042,7 +967,7 @@ class _VideoCreatorScreenState extends State<VideoCreatorScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(kIsWeb ? '다운로드가 시작되었습니다' : '갤러리에 저장되었습니다'),
+            content: Text('갤러리에 저장되었습니다'),
             backgroundColor: AppColors.success,
           ),
         );
