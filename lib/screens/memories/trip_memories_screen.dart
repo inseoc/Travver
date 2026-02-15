@@ -187,23 +187,15 @@ class _TripMemoriesScreenState extends State<TripMemoriesScreen> {
                 color: AppColors.surface,
                 child: Row(
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: AppColors.accent.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
+                    Expanded(
                       child: Text(
-                        photo.styleLabel,
+                        photo.displayName,
                         style: AppTypography.caption.copyWith(
-                          color: AppColors.accent,
                           fontWeight: FontWeight.w500,
-                          fontSize: 10,
                         ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    const Spacer(),
                     GestureDetector(
                       onTap: () => _confirmDelete(photo),
                       child: Icon(Icons.delete_outline,
@@ -242,16 +234,27 @@ class _TripMemoriesScreenState extends State<TripMemoriesScreen> {
               ),
               child: Row(
                 children: [
-                  Text(photo.styleLabel,
-                      style: AppTypography.body2
-                          .copyWith(fontWeight: FontWeight.w600)),
-                  const SizedBox(width: 8),
                   Expanded(
-                    child: Text(
-                      photo.originalFilename,
-                      style: AppTypography.caption
-                          .copyWith(color: AppColors.textSecondary),
-                      overflow: TextOverflow.ellipsis,
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.pop(context);
+                        _showRenameDialog(photo);
+                      },
+                      child: Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              photo.displayName,
+                              style: AppTypography.body2
+                                  .copyWith(fontWeight: FontWeight.w600),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Icon(Icons.edit_outlined,
+                              size: 14, color: AppColors.textSecondary),
+                        ],
+                      ),
                     ),
                   ),
                   IconButton(
@@ -269,6 +272,78 @@ class _TripMemoriesScreenState extends State<TripMemoriesScreen> {
         ),
       ),
     );
+  }
+
+  void _showRenameDialog(DecoratedPhoto photo) {
+    final controller = TextEditingController(text: photo.displayName);
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('사진 이름 수정'),
+          content: TextField(
+            controller: controller,
+            maxLength: 30,
+            autofocus: true,
+            decoration: const InputDecoration(
+              hintText: '사진 이름을 입력하세요',
+              hintStyle: TextStyle(fontSize: 14),
+              border: OutlineInputBorder(),
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 10,
+              ),
+              counterText: '',
+            ),
+            style: const TextStyle(fontSize: 14),
+            onSubmitted: (value) {
+              if (value.trim().isNotEmpty) {
+                Navigator.pop(dialogContext);
+                _renamePhoto(photo, value.trim());
+              }
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('취소'),
+            ),
+            TextButton(
+              onPressed: () {
+                final text = controller.text.trim();
+                if (text.isNotEmpty) {
+                  Navigator.pop(dialogContext);
+                  _renamePhoto(photo, text);
+                }
+              },
+              child: const Text('확인'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _renamePhoto(DecoratedPhoto photo, String newName) async {
+    try {
+      await _storageService.updatePhotoDisplayName(photo.id, newName);
+      setState(() {
+        final index = _photos.indexWhere((p) => p.id == photo.id);
+        if (index != -1) {
+          _photos[index] = _photos[index].copyWith(displayName: newName);
+        }
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('이름 변경 실패: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
   }
 
   void _confirmDelete(DecoratedPhoto photo) {

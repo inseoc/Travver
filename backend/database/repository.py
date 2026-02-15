@@ -285,8 +285,8 @@ class PhotoRepository:
         await self.conn.execute(
             """INSERT OR REPLACE INTO decorated_photos
             (id, trip_id, original_filename, style,
-             result_image_base64, result_mime_type, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)""",
+             result_image_base64, result_mime_type, display_name, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
             [
                 photo.id,
                 photo.trip_id,
@@ -294,6 +294,7 @@ class PhotoRepository:
                 photo.style,
                 photo.result_image_base64,
                 photo.result_mime_type,
+                photo.display_name,
                 photo.created_at.isoformat(),
             ],
         )
@@ -326,6 +327,7 @@ class PhotoRepository:
             style=row["style"],
             result_image_base64=row["result_image_base64"],
             result_mime_type=row.get("result_mime_type", "image/jpeg"),
+            display_name=row.get("display_name", "Photo"),
             created_at=datetime.fromisoformat(row["created_at"]),
         )
 
