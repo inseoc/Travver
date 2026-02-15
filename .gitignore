@@ -1,5 +1,10 @@
 .env
 
+# SQLite database files
+*.db
+*.db-journal
+*.db-wal
+
 # Miscellaneous
 *.class
 *.log

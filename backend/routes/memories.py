@@ -1,4 +1,4 @@
-"""Memories API routes - 사진 꾸미기 / 영상 생성."""
+"""Memories API routes - 사진 꾸미기 / 영상 생성 (SQLite 기반)."""
 
 import base64
 import uuid
@@ -17,11 +17,15 @@ from models.responses import (
 )
 from models.travel import DecoratedPhoto
 from services.gemini_service import gemini_service
+from database import db
+from database.repository import PhotoRepository
 
 router = APIRouter(prefix="/memories", tags=["Memories"])
 
-# In-memory storage for decorated photos (production에서는 DB 사용)
-_photos_db: Dict[str, DecoratedPhoto] = {}
+
+def _get_repo() -> PhotoRepository:
+    """Get PhotoRepository with current DB connection."""
+    return PhotoRepository(db.connection)
 
 
 @router.post(
@@ -125,7 +129,7 @@ async def decorate_photo(
 
 
 # ──────────────────────────────────────────────
-# 꾸며진 사진 CRUD
+# 꾸며진 사진 CRUD (SQLite)
 # ──────────────────────────────────────────────
 
 
@@ -152,9 +156,11 @@ async def save_decorated_photo(
         result_mime_type=result_mime_type,
         created_at=datetime.now(),
     )
-    _photos_db[photo_id] = photo
+
+    repo = _get_repo()
+    saved = await repo.save(photo)
     logger.info(f"Saved decorated photo: {photo_id} for trip {trip_id}")
-    return {"success": True, "photo": photo.model_dump()}
+    return {"success": True, "photo": saved.model_dump()}
 
 
 @router.get(
@@ -164,8 +170,8 @@ async def save_decorated_photo(
 )
 async def get_trip_photos(trip_id: str):
     """특정 여행에 연결된 꾸며진 사진 목록을 조회합니다."""
-    photos = [p for p in _photos_db.values() if p.trip_id == trip_id]
-    photos.sort(key=lambda p: p.created_at, reverse=True)
+    repo = _get_repo()
+    photos = await repo.get_by_trip_id(trip_id)
     return DecoratedPhotoListResponse(
         success=True,
         photos=photos,
@@ -179,12 +185,13 @@ async def get_trip_photos(trip_id: str):
 )
 async def delete_decorated_photo(photo_id: str):
     """꾸며진 사진을 삭제합니다."""
-    if photo_id not in _photos_db:
+    repo = _get_repo()
+    deleted = await repo.delete(photo_id)
+    if not deleted:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"error": "NOT_FOUND", "message": "사진을 찾을 수 없습니다."},
         )
-    del _photos_db[photo_id]
     logger.info(f"Deleted decorated photo: {photo_id}")
     return {"success": True}
 

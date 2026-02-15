@@ -8,6 +8,8 @@ from core.exceptions import AIServiceException, ValidationException
 from models.requests import TravelPlanRequest, ConsultantRequest
 from models.responses import TravelPlanResponse, ConsultantResponse, ErrorResponse
 from agents import travel_planner_agent, travel_consultant_agent
+from database import db
+from database.repository import TripRepository
 
 router = APIRouter(prefix="/agent", tags=["Agent"])
 
@@ -46,6 +48,14 @@ async def generate_travel_plan(request: TravelPlanRequest) -> TravelPlanResponse
             accommodation_location=request.accommodation_location,
             custom_preference=request.custom_preference,
         )
+
+        # 생성된 여행을 SQLite에 저장
+        try:
+            repo = TripRepository(db.connection)
+            await repo.create(trip)
+            logger.info(f"Trip saved to database: {trip.id}")
+        except Exception as save_err:
+            logger.warning(f"Failed to save trip to database: {save_err}")
 
         return TravelPlanResponse(
             success=True,
@@ -96,11 +106,15 @@ async def chat_with_consultant(request: ConsultantRequest) -> ConsultantResponse
     logger.info(f"Consultant request: {request.message[:50]}...")
 
     try:
-        # 여행 컨텍스트 조회 (trip_id가 있는 경우)
+        # 여행 컨텍스트 조회 (trip_id가 있는 경우 - SQLite)
         trip_context = None
         if request.trip_id:
-            # 실제로는 DB에서 조회
-            trip_context = {"trip_id": request.trip_id}
+            repo = TripRepository(db.connection)
+            trip = await repo.get_by_id(request.trip_id)
+            if trip:
+                trip_context = trip.model_dump()
+            else:
+                trip_context = {"trip_id": request.trip_id}
 
         result = await travel_consultant_agent.chat(
             message=request.message,
@@ -146,7 +160,12 @@ async def chat_with_consultant_stream(request: ConsultantRequest):
         try:
             trip_context = None
             if request.trip_id:
-                trip_context = {"trip_id": request.trip_id}
+                repo = TripRepository(db.connection)
+                trip = await repo.get_by_id(request.trip_id)
+                if trip:
+                    trip_context = trip.model_dump()
+                else:
+                    trip_context = {"trip_id": request.trip_id}
 
             async for chunk in travel_consultant_agent.chat_stream(
                 message=request.message,
