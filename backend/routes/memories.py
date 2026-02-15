@@ -145,9 +145,10 @@ async def decorate_photo(
 async def save_decorated_photo(
     trip_id: str = Form(..., description="여행 ID"),
     original_filename: str = Form(..., description="원본 파일명"),
-    style: str = Form(..., description="적용된 스타일"),
+    style: str = Form(..., description="적용된 프롬프트"),
     result_image_base64: str = Form(..., description="결과 이미지 Base64"),
     result_mime_type: str = Form("image/jpeg", description="결과 MIME 타입"),
+    display_name: str = Form("Photo", description="사진 표시 이름"),
 ):
     """꾸며진 사진을 저장합니다."""
     photo_id = f"photo_{uuid.uuid4().hex[:12]}"
@@ -158,6 +159,7 @@ async def save_decorated_photo(
         style=style,
         result_image_base64=result_image_base64,
         result_mime_type=result_mime_type,
+        display_name=display_name,
         created_at=datetime.now(),
     )
 

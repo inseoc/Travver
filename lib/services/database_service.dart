@@ -13,7 +13,7 @@ class DatabaseService {
 
   static Database? _database;
 
-  static const int _dbVersion = 1;
+  static const int _dbVersion = 2;
   static const String _dbName = 'travver.db';
 
   /// 데이터베이스 인스턴스 획득
@@ -129,6 +129,7 @@ class DatabaseService {
         style               TEXT NOT NULL,
         result_image_base64 TEXT NOT NULL,
         result_mime_type    TEXT NOT NULL DEFAULT 'image/jpeg',
+        display_name        TEXT NOT NULL DEFAULT 'Photo',
         created_at          TEXT NOT NULL
       )
     ''');
@@ -163,7 +164,12 @@ class DatabaseService {
 
   /// 스키마 업그레이드
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    // 향후 마이그레이션 처리
+    if (oldVersion < 2) {
+      // v2: decorated_photos에 display_name 컬럼 추가
+      await db.execute(
+        "ALTER TABLE decorated_photos ADD COLUMN display_name TEXT NOT NULL DEFAULT 'Photo'",
+      );
+    }
   }
 
   // ──────────────────────────────────────────────
@@ -395,9 +401,21 @@ class DatabaseService {
         'style': photo.style,
         'result_image_base64': photo.resultImageBase64,
         'result_mime_type': photo.resultMimeType,
+        'display_name': photo.displayName,
         'created_at': photo.createdAt.toIso8601String(),
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  /// 꾸며진 사진 이름 수정
+  Future<void> updatePhotoDisplayName(String photoId, String displayName) async {
+    final db = await database;
+    await db.update(
+      'decorated_photos',
+      {'display_name': displayName},
+      where: 'id = ?',
+      whereArgs: [photoId],
     );
   }
 
@@ -439,6 +457,7 @@ class DatabaseService {
       style: row['style'] as String,
       resultImageBase64: row['result_image_base64'] as String,
       resultMimeType: row['result_mime_type'] as String? ?? 'image/jpeg',
+      displayName: row['display_name'] as String?,
       createdAt: DateTime.parse(row['created_at'] as String),
     );
   }

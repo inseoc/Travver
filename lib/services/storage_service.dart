@@ -113,6 +113,11 @@ class StorageService {
     return await _db.getAllPhotoCountsByTrip();
   }
 
+  /// 꾸며진 사진 이름 수정
+  Future<void> updatePhotoDisplayName(String photoId, String displayName) async {
+    await _db.updatePhotoDisplayName(photoId, displayName);
+  }
+
   /// 꾸며진 사진 삭제
   Future<void> deletePhoto(String photoId) async {
     await _db.deletePhoto(photoId);

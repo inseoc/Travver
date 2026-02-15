@@ -7,6 +7,7 @@ class DecoratedPhoto {
   final String resultImageBase64;
   final String resultMimeType;
   final DateTime createdAt;
+  final String displayName;
 
   DecoratedPhoto({
     required this.id,
@@ -16,7 +17,8 @@ class DecoratedPhoto {
     required this.resultImageBase64,
     this.resultMimeType = 'image/jpeg',
     required this.createdAt,
-  });
+    String? displayName,
+  }) : displayName = displayName ?? 'Photo';
 
   factory DecoratedPhoto.fromJson(Map<String, dynamic> json) {
     return DecoratedPhoto(
@@ -29,6 +31,7 @@ class DecoratedPhoto {
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'] as String)
           : DateTime.now(),
+      displayName: json['display_name'] as String?,
     );
   }
 
@@ -40,7 +43,19 @@ class DecoratedPhoto {
         'result_image_base64': resultImageBase64,
         'result_mime_type': resultMimeType,
         'created_at': createdAt.toIso8601String(),
+        'display_name': displayName,
       };
 
-  String get styleLabel => style;
+  DecoratedPhoto copyWith({String? displayName}) {
+    return DecoratedPhoto(
+      id: id,
+      tripId: tripId,
+      originalFilename: originalFilename,
+      style: style,
+      resultImageBase64: resultImageBase64,
+      resultMimeType: resultMimeType,
+      createdAt: createdAt,
+      displayName: displayName ?? this.displayName,
+    );
+  }
 }

@@ -593,6 +593,10 @@ class _PhotoDecoratorScreenState extends State<PhotoDecoratorScreen> {
     if (item.decoratedBase64 == null) return;
 
     try {
+      // 기존 사진 개수로 번호 결정
+      final existingCount = await _storageService.getPhotoCountByTripId(widget.tripId!);
+      final displayName = 'Photo ${existingCount + 1}';
+
       // 백엔드에 저장 시도
       String? photoId;
       try {
@@ -620,6 +624,7 @@ class _PhotoDecoratorScreenState extends State<PhotoDecoratorScreen> {
         style: item.appliedPrompt ?? item.promptController.text.trim(),
         resultImageBase64: item.decoratedBase64!,
         resultMimeType: item.decoratedMimeType ?? 'image/jpeg',
+        displayName: displayName,
         createdAt: DateTime.now(),
       );
       await _storageService.savePhoto(photo);
