@@ -42,15 +42,5 @@ class DecoratedPhoto {
         'created_at': createdAt.toIso8601String(),
       };
 
-  String get styleLabel {
-    const labels = {
-      'watercolor': '수채화',
-      'oil_painting': '유화',
-      'sketch': '스케치',
-      'vintage': '빈티지',
-      'movie_poster': '영화 포스터',
-      'pop_art': '팝아트',
-    };
-    return labels[style] ?? style;
-  }
+  String get styleLabel => style;
 }

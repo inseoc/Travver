@@ -71,12 +71,6 @@ class HomeScreen extends StatelessWidget {
         onTap: () => context.push(AppRoutes.planInput),
       ),
       QuickAction(
-        icon: Icons.chat_bubble_outline,
-        label: 'AI 컨설턴트',
-        color: AppColors.info,
-        onTap: () => context.push(AppRoutes.aiConsultant),
-      ),
-      QuickAction(
         icon: Icons.luggage_outlined,
         label: '내 여행',
         color: AppColors.success,

@@ -5,6 +5,7 @@ import '../../app/theme.dart';
 import '../../app/routes.dart';
 import '../../models/models.dart';
 import '../../providers/trip_provider.dart';
+import '../../services/api_service.dart';
 import '../../widgets/map/trip_map_widget.dart';
 import 'timeline_view.dart';
 
@@ -24,8 +25,10 @@ class _PlanResultScreenState extends State<PlanResultScreen> {
   int _selectedDay = 0; // 0 = 전체보기
   int? _selectedScheduleIndex;
   double _mapHeightRatio = 0.4;
+  bool _isModifying = false;
 
   Trip? _trip;
+  final ApiService _apiService = ApiService();
 
   @override
   void initState() {
@@ -104,6 +107,7 @@ class _PlanResultScreenState extends State<PlanResultScreen> {
                     dailyPlans: _filteredPlans,
                     selectedScheduleIndex: _selectedScheduleIndex,
                     onScheduleTap: _onScheduleTap,
+                    onDayEdit: _showDayEditDialog,
                   ),
                 ),
               ],
@@ -211,23 +215,11 @@ class _PlanResultScreenState extends State<PlanResultScreen> {
   }
 
   Widget _buildFloatingButtons() {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        FloatingActionButton.small(
-          heroTag: 'edit',
-          backgroundColor: AppColors.surface,
-          onPressed: _requestModification,
-          child: const Icon(Icons.edit_outlined, color: AppColors.primary),
-        ),
-        const SizedBox(height: AppDimens.spacing8),
-        FloatingActionButton.extended(
-          heroTag: 'save',
-          onPressed: _saveTrip,
-          icon: const Icon(Icons.check),
-          label: const Text('저장'),
-        ),
-      ],
+    return FloatingActionButton.extended(
+      heroTag: 'save',
+      onPressed: _saveTrip,
+      icon: const Icon(Icons.check),
+      label: const Text('저장'),
     );
   }
 
@@ -302,11 +294,109 @@ class _PlanResultScreenState extends State<PlanResultScreen> {
     );
   }
 
-  void _requestModification() {
-    // TODO: AI Agent 재호출로 일정 수정 요청
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('일정 수정 기능은 준비 중입니다')),
+  void _showDayEditDialog(int dayNumber) {
+    final controller = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text('Day $dayNumber 일정 수정'),
+          content: TextField(
+            controller: controller,
+            maxLength: 50,
+            autofocus: true,
+            decoration: const InputDecoration(
+              hintText: '수정 요청을 입력하세요',
+              hintStyle: TextStyle(fontSize: 14),
+              border: OutlineInputBorder(),
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 10,
+              ),
+              counterText: '',
+            ),
+            style: const TextStyle(fontSize: 14),
+            onSubmitted: (value) {
+              if (value.trim().isNotEmpty) {
+                Navigator.pop(dialogContext);
+                _modifyDaySchedule(dayNumber, value.trim());
+              }
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('취소'),
+            ),
+            TextButton(
+              onPressed: () {
+                final text = controller.text.trim();
+                if (text.isNotEmpty) {
+                  Navigator.pop(dialogContext);
+                  _modifyDaySchedule(dayNumber, text);
+                }
+              },
+              child: const Text('수정'),
+            ),
+          ],
+        );
+      },
     );
+  }
+
+  Future<void> _modifyDaySchedule(int dayNumber, String prompt) async {
+    if (_trip == null || _isModifying) return;
+
+    setState(() => _isModifying = true);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('AI가 일정을 수정하고 있습니다...')),
+    );
+
+    try {
+      final modifiedPlan = await _apiService.modifyDayPlan(
+        tripId: _trip!.id,
+        day: dayNumber,
+        prompt: prompt,
+      );
+
+      if (mounted) {
+        setState(() {
+          final updatedPlans = _trip!.dailyPlans.map((plan) {
+            if (plan.day == dayNumber) {
+              return modifiedPlan;
+            }
+            return plan;
+          }).toList();
+
+          _trip = _trip!.copyWith(dailyPlans: updatedPlans);
+        });
+
+        // Provider에도 반영
+        context.read<TripProvider>().updateTrip(_trip!);
+
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Day $dayNumber 일정이 수정되었습니다'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('일정 수정 실패: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isModifying = false);
+    }
   }
 
   Future<void> _saveTrip() async {

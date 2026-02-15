@@ -8,12 +8,14 @@ class TimelineView extends StatelessWidget {
   final List<DailyPlan> dailyPlans;
   final int? selectedScheduleIndex;
   final Function(int dayIndex, int scheduleIndex)? onScheduleTap;
+  final Function(int dayNumber)? onDayEdit;
 
   const TimelineView({
     super.key,
     required this.dailyPlans,
     this.selectedScheduleIndex,
     this.onScheduleTap,
+    this.onDayEdit,
   });
 
   @override
@@ -83,12 +85,31 @@ class TimelineView extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: AppDimens.spacing8),
-              Text(
-                plan.dateString,
-                style: AppTypography.body2.copyWith(
-                  color: AppColors.textSecondary,
+              Expanded(
+                child: Text(
+                  plan.dateString,
+                  style: AppTypography.body2.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
                 ),
               ),
+              if (onDayEdit != null)
+                SizedBox(
+                  height: 28,
+                  child: TextButton.icon(
+                    onPressed: () => onDayEdit!(plan.day),
+                    icon: Icon(Icons.edit_outlined, size: 14, color: dayColor),
+                    label: Text(
+                      '일정 수정',
+                      style: AppTypography.caption.copyWith(color: dayColor),
+                    ),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+                ),
             ],
           ),
         ),

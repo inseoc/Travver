@@ -13,13 +13,13 @@ from .travel import (
 )
 from .requests import (
     TravelPlanRequest,
-    ConsultantRequest,
+    ModifyDayRequest,
     PhotoDecorateRequest,
     VideoCreateRequest,
 )
 from .responses import (
     TravelPlanResponse,
-    ConsultantResponse,
+    ModifyDayResponse,
     PhotoDecorateResponse,
     VideoCreateResponse,
     ErrorResponse,
@@ -39,12 +39,12 @@ __all__ = [
     "TripStatus",
     # Request models
     "TravelPlanRequest",
-    "ConsultantRequest",
+    "ModifyDayRequest",
     "PhotoDecorateRequest",
     "VideoCreateRequest",
     # Response models
     "TravelPlanResponse",
-    "ConsultantResponse",
+    "ModifyDayResponse",
     "PhotoDecorateResponse",
     "VideoCreateResponse",
     "ErrorResponse",

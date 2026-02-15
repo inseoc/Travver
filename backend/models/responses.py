@@ -3,7 +3,7 @@
 from typing import Any, List, Optional
 from pydantic import BaseModel, Field
 
-from .travel import Trip, DecoratedPhoto
+from .travel import Trip, DailyPlan, DecoratedPhoto
 
 
 class ErrorResponse(BaseModel):
@@ -64,18 +64,23 @@ class TravelPlanResponse(BaseModel):
         }
 
 
-class ConsultantResponse(BaseModel):
-    """AI 컨설턴트 응답."""
+class ModifyDayResponse(BaseModel):
+    """Day 단위 일정 수정 응답."""
     success: bool = Field(default=True, description="성공 여부")
-    response: str = Field(..., description="AI 응답 메시지")
-    tools_used: list = Field(default_factory=list, description="사용된 도구 목록")
+    daily_plan: DailyPlan = Field(..., description="수정된 일일 일정")
+    message: str = Field(default="일정이 수정되었습니다", description="응답 메시지")
 
     class Config:
         json_schema_extra = {
             "example": {
                 "success": True,
-                "response": "현재 위치 기준 추천 라멘집 3곳입니다...",
-                "tools_used": ["search_places"],
+                "daily_plan": {
+                    "day": 2,
+                    "date": "2026-03-02",
+                    "theme": "맛집 투어",
+                    "schedules": [],
+                },
+                "message": "Day 2 일정이 수정되었습니다.",
             }
         }
 
@@ -85,7 +90,7 @@ class PhotoDecorateResponse(BaseModel):
     success: bool = Field(default=True, description="성공 여부")
     result_url: str = Field(..., description="결과 이미지 URL")
     original_url: str = Field(..., description="원본 이미지 URL")
-    style: str = Field(..., description="적용된 스타일")
+    prompt: str = Field(..., description="적용된 프롬프트")
     result_image_base64: Optional[str] = Field(default=None, description="결과 이미지 Base64 데이터")
     result_mime_type: Optional[str] = Field(default=None, description="결과 이미지 MIME 타입")
 
@@ -95,7 +100,7 @@ class PhotoDecorateResponse(BaseModel):
                 "success": True,
                 "result_url": "https://storage.example.com/decorated/123.jpg",
                 "original_url": "https://storage.example.com/original/123.jpg",
-                "style": "watercolor",
+                "prompt": "봄 느낌의 파스텔 톤으로",
                 "result_image_base64": "<base64-encoded-image>",
                 "result_mime_type": "image/jpeg",
             }

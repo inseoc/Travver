@@ -40,14 +40,14 @@ def _get_repo() -> PhotoRepository:
 )
 async def decorate_photo(
     image: UploadFile = File(..., description="원본 이미지"),
-    style: str = Form(..., description="적용할 스타일"),
+    prompt: str = Form(..., description="이미지 생성 프롬프트 (30자 이내)"),
     trip_id: str = Form(None, description="여행 ID"),
 ) -> PhotoDecorateResponse:
     """
     AI로 사진을 꾸밉니다.
 
     - **image**: 원본 이미지 파일 (JPG, PNG)
-    - **style**: 스타일 (watercolor, oil_painting, sketch, vintage, movie_poster, pop_art)
+    - **prompt**: 이미지 생성 프롬프트 (30자 이내)
     - **trip_id**: 여행 ID (선택)
     """
     # 파일 검증
@@ -65,15 +65,19 @@ async def decorate_photo(
             detail={"error": "FILE_TOO_LARGE", "message": "파일 크기는 10MB 이하여야 합니다."},
         )
 
-    # 스타일 검증
-    valid_styles = ["watercolor", "oil_painting", "sketch", "vintage", "movie_poster", "pop_art"]
-    if style not in valid_styles:
+    # 프롬프트 길이 검증
+    if not prompt or not prompt.strip():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"error": "INVALID_STYLE", "message": f"유효하지 않은 스타일입니다. 가능한 값: {valid_styles}"},
+            detail={"error": "EMPTY_PROMPT", "message": "프롬프트를 입력해주세요."},
+        )
+    if len(prompt) > 30:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error": "PROMPT_TOO_LONG", "message": "프롬프트는 30자 이내로 입력해주세요."},
         )
 
-    logger.info(f"Photo decoration request: style={style}, size={len(contents)} bytes")
+    logger.info(f"Photo decoration request: prompt={prompt}, size={len(contents)} bytes")
 
     try:
         # 이미지 포맷 추출
@@ -86,7 +90,7 @@ async def decorate_photo(
         # Gemini로 사진 변환
         result_data = await gemini_service.decorate_photo(
             image_data=contents,
-            style=style,
+            prompt=prompt,
             image_format=image_format,
         )
 
@@ -102,7 +106,7 @@ async def decorate_photo(
             success=True,
             result_url=result_url,
             original_url=original_url,
-            style=style,
+            prompt=prompt,
             result_image_base64=result_base64,
             result_mime_type=mime_type,
         )
@@ -336,25 +340,6 @@ async def create_video(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={"error": "INTERNAL_ERROR", "message": "서버 오류가 발생했습니다."},
         )
-
-
-@router.get(
-    "/styles/photo",
-    summary="사진 스타일 목록",
-    description="사용 가능한 사진 스타일 목록을 반환합니다.",
-)
-async def get_photo_styles():
-    """사용 가능한 사진 스타일 목록."""
-    return {
-        "styles": [
-            {"id": "watercolor", "name": "수채화", "description": "부드러운 수채화 스타일"},
-            {"id": "oil_painting", "name": "유화", "description": "클래식 유화 스타일"},
-            {"id": "sketch", "name": "스케치", "description": "연필 스케치 스타일"},
-            {"id": "vintage", "name": "빈티지", "description": "레트로 빈티지 스타일"},
-            {"id": "movie_poster", "name": "영화 포스터", "description": "드라마틱한 영화 포스터 스타일"},
-            {"id": "pop_art", "name": "팝아트", "description": "화려한 팝아트 스타일"},
-        ]
-    }
 
 
 @router.get(

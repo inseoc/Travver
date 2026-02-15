@@ -33,7 +33,8 @@ class _SelectedPhoto {
 /// 개별 사진의 꾸미기 상태
 class _PhotoItem {
   final _SelectedPhoto original;
-  String? selectedStyle;
+  final TextEditingController promptController = TextEditingController();
+  String? appliedPrompt;
   Uint8List? decoratedBytes;
   String? decoratedBase64;
   String? decoratedMimeType;
@@ -53,15 +54,6 @@ class _PhotoDecoratorScreenState extends State<PhotoDecoratorScreen> {
   final ImagePicker _picker = ImagePicker();
   final ApiService _apiService = ApiService();
   final StorageService _storageService = StorageService();
-
-  final List<PhotoStyle> _styles = [
-    PhotoStyle('watercolor', '수채화', Icons.water_drop),
-    PhotoStyle('oil_painting', '유화', Icons.brush),
-    PhotoStyle('sketch', '스케치', Icons.edit),
-    PhotoStyle('vintage', '빈티지', Icons.photo_camera_back),
-    PhotoStyle('movie_poster', '영화 포스터', Icons.movie),
-    PhotoStyle('pop_art', '팝아트', Icons.palette),
-  ];
 
   @override
   void initState() {
@@ -290,63 +282,28 @@ class _PhotoDecoratorScreenState extends State<PhotoDecoratorScreen> {
                   ],
                 ),
                 const SizedBox(height: AppDimens.spacing8),
-                // 스타일 선택
-                SizedBox(
-                  height: 36,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: _styles.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 6),
-                    itemBuilder: (context, i) {
-                      final style = _styles[i];
-                      final isSelected = item.selectedStyle == style.id;
-                      return GestureDetector(
-                        onTap: item.isProcessing
-                            ? null
-                            : () {
-                                setState(
-                                    () => item.selectedStyle = style.id);
-                              },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: isSelected
-                                ? AppColors.accent.withOpacity(0.1)
-                                : Colors.grey.shade100,
-                            borderRadius: BorderRadius.circular(18),
-                            border: Border.all(
-                              color: isSelected
-                                  ? AppColors.accent
-                                  : Colors.grey.shade300,
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(style.icon,
-                                  size: 14,
-                                  color: isSelected
-                                      ? AppColors.accent
-                                      : AppColors.textSecondary),
-                              const SizedBox(width: 4),
-                              Text(
-                                style.label,
-                                style: AppTypography.caption.copyWith(
-                                  color: isSelected
-                                      ? AppColors.accent
-                                      : AppColors.textPrimary,
-                                  fontWeight: isSelected
-                                      ? FontWeight.w600
-                                      : FontWeight.w400,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
+                // 프롬프트 입력
+                TextField(
+                  controller: item.promptController,
+                  maxLength: 30,
+                  enabled: !item.isProcessing,
+                  decoration: const InputDecoration(
+                    hintText: '원하는 스타일을 입력하세요',
+                    hintStyle: TextStyle(fontSize: 13),
+                    border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    counterText: '',
+                    isDense: true,
                   ),
+                  style: const TextStyle(fontSize: 13),
+                  onSubmitted: (value) {
+                    if (value.trim().isNotEmpty && !item.isProcessing) {
+                      _decoratePhoto(item);
+                    }
+                  },
                 ),
                 const SizedBox(height: AppDimens.spacing12),
                 // 액션 버튼들
@@ -357,8 +314,7 @@ class _PhotoDecoratorScreenState extends State<PhotoDecoratorScreen> {
                       child: SizedBox(
                         height: 40,
                         child: ElevatedButton.icon(
-                          onPressed: (item.selectedStyle != null &&
-                                  !item.isProcessing)
+                          onPressed: (!item.isProcessing)
                               ? () => _decoratePhoto(item)
                               : null,
                           icon: item.isProcessing
@@ -585,7 +541,18 @@ class _PhotoDecoratorScreenState extends State<PhotoDecoratorScreen> {
   }
 
   Future<void> _decoratePhoto(_PhotoItem item) async {
-    if (item.original.bytes == null || item.selectedStyle == null) return;
+    final prompt = item.promptController.text.trim();
+    if (item.original.bytes == null || prompt.isEmpty) {
+      if (prompt.isEmpty && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('스타일 프롬프트를 입력해주세요'),
+            backgroundColor: AppColors.warning,
+          ),
+        );
+      }
+      return;
+    }
 
     setState(() => item.isProcessing = true);
 
@@ -593,7 +560,7 @@ class _PhotoDecoratorScreenState extends State<PhotoDecoratorScreen> {
       final result = await _apiService.decoratePhotoBytes(
         imageBytes: item.original.bytes!,
         fileName: item.original.name,
-        style: item.selectedStyle!,
+        prompt: prompt,
         tripId: widget.tripId,
       );
 
@@ -604,6 +571,7 @@ class _PhotoDecoratorScreenState extends State<PhotoDecoratorScreen> {
           item.decoratedBase64 = base64Data;
           item.decoratedMimeType =
               result['result_mime_type'] as String? ?? 'image/jpeg';
+          item.appliedPrompt = prompt;
           item.savedPhotoId = null; // 새로 꾸미면 저장 상태 초기화
         });
       }
@@ -631,7 +599,7 @@ class _PhotoDecoratorScreenState extends State<PhotoDecoratorScreen> {
         final result = await _apiService.saveDecoratedPhoto(
           tripId: widget.tripId!,
           originalFilename: item.original.name,
-          style: item.selectedStyle!,
+          prompt: item.appliedPrompt ?? item.promptController.text.trim(),
           resultImageBase64: item.decoratedBase64!,
           resultMimeType: item.decoratedMimeType ?? 'image/jpeg',
         );
@@ -649,7 +617,7 @@ class _PhotoDecoratorScreenState extends State<PhotoDecoratorScreen> {
         id: photoId,
         tripId: widget.tripId!,
         originalFilename: item.original.name,
-        style: item.selectedStyle!,
+        style: item.appliedPrompt ?? item.promptController.text.trim(),
         resultImageBase64: item.decoratedBase64!,
         resultMimeType: item.decoratedMimeType ?? 'image/jpeg',
         createdAt: DateTime.now(),
@@ -809,12 +777,4 @@ class _PhotoDecoratorScreenState extends State<PhotoDecoratorScreen> {
       }
     }
   }
-}
-
-class PhotoStyle {
-  final String id;
-  final String label;
-  final IconData icon;
-
-  PhotoStyle(this.id, this.label, this.icon);
 }
